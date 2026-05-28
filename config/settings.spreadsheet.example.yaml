@@ -1,0 +1,53 @@
+app:
+  timezone: Asia/Seoul
+  data_dir: data
+  broker_connectors: []
+  whitelisted_public_ip: ""
+
+portfolio_source:
+  type: google_sheets
+  google_sheets:
+    spreadsheet_id: ""
+    range: "Portfolio!A:AF"
+    credentials_path: ""
+    token_path: ""
+    fixture_path: ""
+
+market_data:
+  mode: real
+  universe:
+    - "005930"
+    - "000660"
+    - "005380"
+    - "035420"
+    - "068270"
+  lookback_days: 460
+  fixture_path: ""
+  request_delay_seconds: 0.2
+  cache_dir: "data/market_cache"
+  cache_max_age_days: 1
+  freshness:
+    price_max_age_days: 3
+    technical_weekly_max_age_days: 10
+    fundamental_max_age_days: 120
+
+strategy:
+  max_candidates: 10
+  min_candidates: 5
+  target_position_ratio: 0.20
+  monday_gap_up_cap: 0.08
+  macro:
+    high_us_rate: 0.05
+  fundamental_filter:
+    roe_3y_avg_min: 0.10
+    debt_ratio_max: 1.50
+    min_operating_margin:
+      DEFAULT: 0.08
+      MANUFACTURING: 0.05
+      SOFTWARE: 0.15
+    max_growth_divergence: 0.30
+
+telegram:
+  bot_token: "REPLACE_WITH_LOCAL_TELEGRAM_BOT_TOKEN"
+  chat_id: "REPLACE_WITH_LOCAL_TELEGRAM_CHAT_ID"
+  parse_mode: MarkdownV2
