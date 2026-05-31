@@ -55,6 +55,12 @@ issue -> plan -> implement -> qa -> pr -> review -> release -> deploy
 These are repository-local playbooks, not automatic slash commands. Use them as
 checklists while working in Codex.
 
+## Documentation and Git Rules
+
+- Write agent-facing notes and internal workflow documents under `.omx/` in English.
+- Write project documentation under `docs/` in Korean so the project owner can review it easily, unless the user explicitly asks for another language.
+- After every completed modification, including documentation-only changes, stage and commit the files changed for that task. Do not include unrelated user changes in the commit.
+
 ## Engineering Rules
 
 - Run `python3 -m pytest` after code changes.
@@ -64,4 +70,3 @@ checklists while working in Codex.
 - Prefer deterministic sample data until real broker and market providers are added.
 - Do not commit API tokens, chat IDs, account numbers, or credential files.
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`.
-
