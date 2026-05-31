@@ -1,8 +1,8 @@
 # Roadmap
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-05-31
 **Current Version:** v0.1.0 (In Development)
-**Next Version:** v0.2.0 (Real Data Integration)
+**Next Version:** v0.2.0 (Spreadsheet Portfolio Analysis)
 
 ## Completed Releases
 
@@ -22,9 +22,10 @@
 
 **Goals:**
 - [x] Add read-only Google Sheets portfolio ingestion through a source-neutral portfolio boundary.
-- [x] Extend `src/collectors/market_data.py` with pykrx/FDR provider fallback, cache/telemetry, and an explicit Naver last-resort stub.
+- [x] Extend `src/collectors/market_data.py` with pykrx/FDR live price provider fallback, cache/telemetry, calendar-aware weekly/monthly technical series, and an explicit Naver last-resort stub.
 - [x] Add provider failure handling and explain-log visibility for partial market data.
 - [x] Report buy candidates with rationale and risk notes, without order sizing or automatic rebalancing.
+- [ ] Keep full live macro/fundamental source coverage out of v0.2 unless a separate data-source decision is made; unavailable macro and incomplete fundamentals must remain conservative blockers.
 
 **Release Gate:**
 - [ ] Complete the final Ultragoal code-review/verifier checkpoints before tagging v0.2.0.
@@ -48,6 +49,7 @@
 - Provider fallback chain: pykrx -> FinanceDataReader -> Naver parser implementation.
 - Clear stale-data policy for weekly screening.
 - Provider-level telemetry in explain logs.
+- Live macro and fundamental data-source selection for production-grade live candidate generation.
 
 ### Strategy
 - Monday gap-up cap verification against weekly candidates.

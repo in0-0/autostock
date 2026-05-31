@@ -1,6 +1,6 @@
 # Project Status
 
-**Last Updated:** 2026-05-27
+**Last Updated:** 2026-05-31
 **Status:** v0.1.0 IN DEVELOPMENT
 **Current Version:** v0.1.0
 
@@ -11,7 +11,7 @@
 | Version | Focus | Status |
 |---------|-------|--------|
 | **v0.1.0** | Phase 1 weekly batch MVP hardening | Current |
-| **v0.2.0** | Real broker and market data connectors | Next |
+| **v0.2.0** | Spreadsheet portfolio analysis with live price fallback | Next |
 | **v0.3.0** | Scheduling, alerting, and operational safety | Future |
 
 ## System Health
@@ -28,13 +28,17 @@
 | Priority | Count | Notes |
 |----------|-------|-------|
 | P0-P1 | 0 | None recorded |
-| P2 | 4 | Next implementation items from README |
+| P2 | 4 | Live macro/fundamental sources remain future production-readiness work |
 | P3+ | 0 | None recorded |
 
 ## Recent Changes
 
-- Applied Codex-oriented document memory and workflow playbooks for AutoStock.
+- Added spreadsheet portfolio analysis planning, provider fallback telemetry, and external review triage.
+- Fixed the reviewed real-provider technical-series plan to require calendar-aware weekly/monthly resampling.
 
 ## Next Up
 
-v0.2.0 - implement real broker connectors and replace sample market data with provider fallback chain.
+v0.2.0 - harden spreadsheet portfolio analysis with read-only Google Sheets input,
+live price provider fallback/cache/telemetry, conservative incomplete-data gates,
+and candidate rationale/risk reporting. Full live macro/fundamental source
+coverage and real broker connectors remain future work.

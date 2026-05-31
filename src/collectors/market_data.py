@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
 import re
 import time
 from dataclasses import asdict, dataclass, field
@@ -13,11 +14,29 @@ from src.models import FundamentalRecord, TechnicalRecord
 from src.utils.atomic import atomic_write_json
 
 
+MARKET_DATA_CACHE_SCHEMA_VERSION = 2
+
+
 @dataclass
 class ProviderTelemetry:
     provider: str
     success: bool
     message: str = ""
+
+
+@dataclass(frozen=True)
+class DailyPriceRow:
+    trade_date: date
+    close: float
+    volume: float
+
+
+@dataclass(frozen=True)
+class NormalizedTechnicalSeries:
+    monthly_close: list[float]
+    weekly_close: list[float]
+    weekly_volume: list[float]
+    listed_weeks: int
 
 
 @dataclass
@@ -139,17 +158,18 @@ class PykrxMarketDataProvider:
         current_prices: dict[str, int] = {}
 
         for ticker in self.universe:
-            close_values, volume_values = self._load_price_rows(ticker)
-            if not close_values:
+            price_rows = self._load_price_rows(ticker)
+            if not price_rows:
                 continue
 
-            current_prices[ticker] = int(close_values[-1])
+            normalized = _normalize_daily_ohlcv(price_rows)
+            current_prices[ticker] = int(price_rows[-1].close)
             technicals[ticker] = TechnicalRecord(
                 ticker=ticker,
-                monthly_close=_tail(close_values, 24),
-                weekly_close=_tail(close_values, 80),
-                weekly_volume=_tail(volume_values, 80),
-                listed_weeks=max(len(close_values) // 5, 0),
+                monthly_close=normalized.monthly_close,
+                weekly_close=normalized.weekly_close,
+                weekly_volume=normalized.weekly_volume,
+                listed_weeks=normalized.listed_weeks,
             )
             name = self._ticker_name(ticker)
             fundamentals.append(_incomplete_fundamental(ticker, name))
@@ -168,7 +188,7 @@ class PykrxMarketDataProvider:
             macro_provider="unavailable",
         )
 
-    def _load_price_rows(self, ticker: str) -> tuple[list[float], list[float]]:
+    def _load_price_rows(self, ticker: str) -> list[DailyPriceRow]:
         try:
             from pykrx import stock
         except ImportError as exc:  # pragma: no cover - optional runtime package.
@@ -176,10 +196,7 @@ class PykrxMarketDataProvider:
         end = date.today()
         start = end - timedelta(days=self.lookback_days)
         ohlcv = stock.get_market_ohlcv_by_date(_yyyymmdd(start), _yyyymmdd(end), ticker)
-        return (
-            _series_values(ohlcv, ["종가", "Close", "close"]),
-            _series_values(ohlcv, ["거래량", "Volume", "volume"]),
-        )
+        return _daily_price_rows(ohlcv, ["종가", "Close", "close"], ["거래량", "Volume", "volume"])
 
     def _ticker_name(self, ticker: str) -> str:
         try:
@@ -211,17 +228,18 @@ class FinanceDataReaderMarketDataProvider:
         current_prices: dict[str, int] = {}
 
         for ticker in self.universe:
-            close_values, volume_values = self._load_price_rows(ticker)
-            if not close_values:
+            price_rows = self._load_price_rows(ticker)
+            if not price_rows:
                 continue
 
-            current_prices[ticker] = int(close_values[-1])
+            normalized = _normalize_daily_ohlcv(price_rows)
+            current_prices[ticker] = int(price_rows[-1].close)
             technicals[ticker] = TechnicalRecord(
                 ticker=ticker,
-                monthly_close=_tail(close_values, 24),
-                weekly_close=_tail(close_values, 80),
-                weekly_volume=_tail(volume_values, 80),
-                listed_weeks=max(len(close_values) // 5, 0),
+                monthly_close=normalized.monthly_close,
+                weekly_close=normalized.weekly_close,
+                weekly_volume=normalized.weekly_volume,
+                listed_weeks=normalized.listed_weeks,
             )
             fundamentals.append(_incomplete_fundamental(ticker, ticker))
             _sleep_between_provider_requests(self.request_delay_seconds)
@@ -239,17 +257,14 @@ class FinanceDataReaderMarketDataProvider:
             macro_provider="unavailable",
         )
 
-    def _load_price_rows(self, ticker: str) -> tuple[list[float], list[float]]:
+    def _load_price_rows(self, ticker: str) -> list[DailyPriceRow]:
         try:
             import FinanceDataReader as fdr
         except ImportError as exc:  # pragma: no cover - optional runtime package.
             raise RuntimeError("FinanceDataReader is not installed") from exc
         start = date.today() - timedelta(days=self.lookback_days)
         frame = fdr.DataReader(ticker, start.isoformat())
-        return (
-            _series_values(frame, ["Close", "종가", "close"]),
-            _series_values(frame, ["Volume", "거래량", "volume"]),
-        )
+        return _daily_price_rows(frame, ["Close", "종가", "close"], ["Volume", "거래량", "volume"])
 
 
 class NaverMarketDataProvider:
@@ -362,17 +377,112 @@ def _yyyymmdd(value: date) -> str:
     return value.strftime("%Y%m%d")
 
 
-def _series_values(frame: object, names: list[str]) -> list[float]:
+def _daily_price_rows(frame: object, close_names: list[str], volume_names: list[str]) -> list[DailyPriceRow]:
+    close_series = _series(frame, close_names)
+    volume_series = _series(frame, volume_names)
+    if close_series is None:
+        raise ValueError("market_data_provider_missing_close")
+    if volume_series is None:
+        raise ValueError("market_data_provider_missing_volume")
+    index_values = _index_values(frame)
+    if not index_values:
+        raise ValueError("market_data_provider_missing_date_index")
+
+    close_values = _series_items(close_series)
+    volume_values = _series_items(volume_series)
+    if len(index_values) != len(close_values) or len(close_values) != len(volume_values):
+        raise ValueError("market_data_provider_misaligned_ohlcv")
+
+    rows: list[DailyPriceRow] = []
+    for raw_date, raw_close, raw_volume in zip(index_values, close_values, volume_values):
+        if _is_missing_series_value(raw_close) or _is_missing_series_value(raw_volume):
+            continue
+        trade_date = _coerce_trade_date(raw_date)
+        rows.append(DailyPriceRow(trade_date=trade_date, close=float(raw_close), volume=float(raw_volume)))
+    rows.sort(key=lambda row: row.trade_date)
+    return rows
+
+
+def _normalize_daily_ohlcv(rows: list[DailyPriceRow]) -> NormalizedTechnicalSeries:
+    if not rows:
+        return NormalizedTechnicalSeries(monthly_close=[], weekly_close=[], weekly_volume=[], listed_weeks=0)
+
+    monthly_close_by_bucket: dict[tuple[int, int], float] = {}
+    weekly_close_by_bucket: dict[tuple[int, int], float] = {}
+    weekly_volume_by_bucket: dict[tuple[int, int], float] = {}
+
+    for row in sorted(rows, key=lambda item: item.trade_date):
+        month_bucket = (row.trade_date.year, row.trade_date.month)
+        iso_year, iso_week, _ = row.trade_date.isocalendar()
+        week_bucket = (iso_year, iso_week)
+        monthly_close_by_bucket[month_bucket] = row.close
+        weekly_close_by_bucket[week_bucket] = row.close
+        weekly_volume_by_bucket[week_bucket] = weekly_volume_by_bucket.get(week_bucket, 0.0) + row.volume
+
+    monthly_close = [monthly_close_by_bucket[bucket] for bucket in sorted(monthly_close_by_bucket)]
+    weekly_buckets = sorted(weekly_close_by_bucket)
+    weekly_close = [weekly_close_by_bucket[bucket] for bucket in weekly_buckets]
+    weekly_volume = [weekly_volume_by_bucket[bucket] for bucket in weekly_buckets]
+    return NormalizedTechnicalSeries(
+        monthly_close=_tail(monthly_close, 24),
+        weekly_close=_tail(weekly_close, 80),
+        weekly_volume=_tail(weekly_volume, 80),
+        listed_weeks=len(weekly_buckets),
+    )
+
+
+def _series(frame: object, names: list[str]) -> object | None:
     for name in names:
         try:
-            series = frame[name]  # type: ignore[index]
+            return frame[name]  # type: ignore[index]
         except Exception:
             continue
-        try:
-            return [float(value) for value in series.dropna().tolist()]
-        except AttributeError:
-            return [float(value) for value in series if value is not None]
-    return []
+    return None
+
+
+def _series_values(frame: object, names: list[str]) -> list[float]:
+    series = _series(frame, names)
+    if series is None:
+        return []
+    return [float(value) for value in _series_items(series) if not _is_missing_series_value(value)]
+
+
+def _series_items(series: object) -> list[object]:
+    try:
+        return series.tolist()  # type: ignore[attr-defined]
+    except AttributeError:
+        return list(series)  # type: ignore[arg-type]
+
+
+def _is_missing_series_value(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, float):
+        return math.isnan(value)
+    try:
+        return bool(value != value)
+    except Exception:
+        return False
+
+
+def _index_values(frame: object) -> list[object]:
+    try:
+        return list(frame.index)  # type: ignore[attr-defined]
+    except AttributeError:
+        return []
+
+
+def _coerce_trade_date(value: object) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    date_method = getattr(value, "date", None)
+    if callable(date_method):
+        coerced = date_method()
+        if isinstance(coerced, date):
+            return coerced
+    raise ValueError("market_data_provider_missing_date_index")
 
 
 def _tail(values: list[float], size: int) -> list[float]:
@@ -391,6 +501,7 @@ def _cache_path(cache_dir: str | Path, provider_name: str, universe: list[str], 
 
 def _bundle_to_payload(bundle: MarketDataBundle, *, written_at: datetime | None = None) -> dict:
     return {
+        "cache_schema_version": MARKET_DATA_CACHE_SCHEMA_VERSION,
         "cache_written_at": (written_at or datetime.now()).isoformat(),
         "fundamentals": [record.model_dump() for record in bundle.fundamentals],
         "technicals": {ticker: record.model_dump() for ticker, record in bundle.technicals.items()},
@@ -404,6 +515,8 @@ def _bundle_to_payload(bundle: MarketDataBundle, *, written_at: datetime | None 
 
 
 def _bundle_from_payload(payload: dict) -> MarketDataBundle:
+    if payload.get("cache_schema_version") != MARKET_DATA_CACHE_SCHEMA_VERSION:
+        raise ValueError("invalid_market_cache_schema_version")
     if "macro" not in payload or "macro_provider" not in payload:
         raise ValueError("invalid_market_cache_macro")
     return MarketDataBundle(

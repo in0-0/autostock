@@ -6,13 +6,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 from src.collectors.google_sheets import READONLY_SCOPE, GoogleSheetsConfig, GoogleSheetsPortfolioSource, parse_portfolio_rows
 from src.collectors.market_data import (
     CachedMarketDataProvider,
+    DailyPriceRow,
     FinanceDataReaderMarketDataProvider,
     FixtureMarketDataProvider,
     MarketDataBundle,
@@ -24,6 +25,8 @@ from src.collectors.market_data import (
     load_market_data_with_fallback,
     load_unavailable_macro,
     market_data_warning_messages,
+    _daily_price_rows,
+    _normalize_daily_ohlcv,
 )
 from src.collectors.portfolio_source import (
     PortfolioSourcePosition,
@@ -351,6 +354,29 @@ class Phase1Tests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 CachedMarketDataProvider(FailingProvider(), cache_path, max_age_days=1).load()
 
+    def test_market_data_provider_cache_ignores_legacy_unversioned_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "market.json"
+            cache_path.write_text(
+                json.dumps(
+                    {
+                        "cache_written_at": datetime.now().isoformat(),
+                        "fundamentals": [],
+                        "technicals": {},
+                        "macro": load_unavailable_macro(),
+                        "provider": "legacy",
+                        "current_prices": {},
+                        "telemetry": [],
+                        "stale_warnings": [],
+                        "macro_provider": "unavailable",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(RuntimeError):
+                CachedMarketDataProvider(FailingProvider(), cache_path, max_age_days=1).load()
+
     def test_market_data_provider_cache_ignores_bundle_without_macro(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cache_path = Path(tmp) / "market.json"
@@ -461,12 +487,90 @@ class Phase1Tests(unittest.TestCase):
                 if hasattr(provider, "_ticker_name")
                 else contextlib.nullcontext()
             )
-            with patch.object(provider, "_load_price_rows", return_value=([100.0] * 80, [1000.0] * 80)), name_patch:
+            with patch.object(provider, "_load_price_rows", return_value=_daily_rows(90)), name_patch:
                 bundle = provider.load()
 
             self.assertEqual(bundle.macro_provider, "unavailable")
             self.assertEqual(bundle.macro, load_unavailable_macro())
             self.assertTrue(any(warning.startswith("macro_data_unavailable") for warning in bundle.stale_warnings))
+
+    def test_daily_ohlcv_normalization_uses_calendar_week_and_month_buckets(self) -> None:
+        rows = [
+            DailyPriceRow(date(2026, 1, 29), 100.0, 10.0),
+            DailyPriceRow(date(2026, 1, 30), 101.0, 20.0),
+            DailyPriceRow(date(2026, 2, 2), 102.0, 30.0),
+            DailyPriceRow(date(2026, 2, 4), 103.0, 40.0),
+            DailyPriceRow(date(2026, 2, 5), 104.0, 50.0),
+            DailyPriceRow(date(2026, 2, 10), 105.0, 60.0),
+            DailyPriceRow(date(2026, 3, 2), 106.0, 70.0),
+        ]
+
+        normalized = _normalize_daily_ohlcv(rows)
+
+        self.assertEqual(normalized.monthly_close, [101.0, 105.0, 106.0])
+        self.assertEqual(normalized.weekly_close, [101.0, 104.0, 105.0, 106.0])
+        self.assertEqual(normalized.weekly_volume, [30.0, 120.0, 60.0, 70.0])
+        self.assertEqual(normalized.listed_weeks, 4)
+
+    def test_provider_daily_price_rows_require_date_index(self) -> None:
+        frame = FakeFrame(
+            rows={
+                "Close": [100.0, 101.0],
+                "Volume": [1000.0, 1100.0],
+            },
+            index=["2026-01-02", "2026-01-05"],
+        )
+
+        with self.assertRaisesRegex(ValueError, "market_data_provider_missing_date_index"):
+            _daily_price_rows(frame, ["Close"], ["Volume"])
+
+    def test_provider_daily_price_rows_preserve_index_alignment_with_missing_values(self) -> None:
+        frame = FakeFrame(
+            rows={
+                "Close": [100.0, None, 102.0],
+                "Volume": [1000.0, 1100.0, 1200.0],
+            },
+            index=[date(2026, 1, 2), date(2026, 1, 5), date(2026, 1, 6)],
+        )
+
+        rows = _daily_price_rows(frame, ["Close"], ["Volume"])
+
+        self.assertEqual(
+            rows,
+            [
+                DailyPriceRow(date(2026, 1, 2), 100.0, 1000.0),
+                DailyPriceRow(date(2026, 1, 6), 102.0, 1200.0),
+            ],
+        )
+
+    def test_real_provider_paths_resample_daily_rows_before_building_technical_record(self) -> None:
+        rows = [
+            DailyPriceRow(date(2026, 1, 29), 100.0, 10.0),
+            DailyPriceRow(date(2026, 1, 30), 101.0, 20.0),
+            DailyPriceRow(date(2026, 2, 2), 102.0, 30.0),
+            DailyPriceRow(date(2026, 2, 4), 103.0, 40.0),
+            DailyPriceRow(date(2026, 2, 5), 104.0, 50.0),
+            DailyPriceRow(date(2026, 2, 10), 105.0, 60.0),
+            DailyPriceRow(date(2026, 3, 2), 106.0, 70.0),
+        ]
+        for provider in [
+            PykrxMarketDataProvider(universe=["005930"]),
+            FinanceDataReaderMarketDataProvider(universe=["005930"]),
+        ]:
+            name_patch = (
+                patch.object(provider, "_ticker_name", return_value="005930")
+                if hasattr(provider, "_ticker_name")
+                else contextlib.nullcontext()
+            )
+            with patch.object(provider, "_load_price_rows", return_value=rows), name_patch:
+                bundle = provider.load()
+
+            technical = bundle.technicals["005930"]
+            self.assertEqual(technical.monthly_close, [101.0, 105.0, 106.0])
+            self.assertEqual(technical.weekly_close, [101.0, 104.0, 105.0, 106.0])
+            self.assertEqual(technical.weekly_volume, [30.0, 120.0, 60.0, 70.0])
+            self.assertEqual(technical.listed_weeks, 4)
+            self.assertEqual(bundle.current_prices["005930"], 106)
 
     def test_candidate_completeness_blocks_missing_current_price(self) -> None:
         fundamental = FundamentalRecord(
@@ -945,6 +1049,23 @@ class FakeSheetsService:
 
     def execute(self) -> dict:
         return {"values": self.response_values}
+
+
+class FakeFrame:
+    def __init__(self, *, rows: dict[str, list[object]], index: list[object]) -> None:
+        self.rows = rows
+        self.index = index
+
+    def __getitem__(self, name: str) -> list[object]:
+        return self.rows[name]
+
+
+def _daily_rows(count: int) -> list[DailyPriceRow]:
+    start = date(2026, 1, 1)
+    return [
+        DailyPriceRow(start + timedelta(days=offset), 100.0 + offset, 1000.0 + offset)
+        for offset in range(count)
+    ]
 
 
 class FailingProvider:
