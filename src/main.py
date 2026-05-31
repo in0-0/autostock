@@ -19,9 +19,11 @@ from src.engines.macro import MacroEngine
 from src.engines.portfolio import PortfolioEngine
 from src.engines.technical import TechnicalEngine
 from src.models import Candidate, ExplainLog, MacroStatus
-from src.reporting import render_markdown_report
+from src.reporting import render_markdown_report, render_telegram_markdown_v2
 from src.utils.atomic import atomic_write_json
 from src.utils.config import get_nested, load_settings
+from src.utils.redaction import sanitize_error_message
+from src.utils.telegram import TelegramClient
 
 
 def run(settings_path: str) -> None:
@@ -118,7 +120,7 @@ def run(settings_path: str) -> None:
                 "macro_risk_off",
             ]
         rankable_candidates = []
-    ranked_candidates = portfolio_engine.rank_candidates(rankable_candidates)
+    ranked_candidates = portfolio_engine.rank_candidates(rankable_candidates, macro_status)
     trade_guides = []
 
     ranked_by_ticker = {candidate.ticker: candidate for candidate in ranked_candidates}
@@ -129,7 +131,7 @@ def run(settings_path: str) -> None:
     for item in fundamental_explain:
         ticker = item["ticker"]
         ranked = ranked_by_ticker.get(ticker)
-        candidate = candidate_by_ticker.get(ticker)
+        candidate = ranked_by_ticker.get(ticker) or candidate_by_ticker.get(ticker)
         risk_reasons = list(
             dict.fromkeys(
                 [
@@ -150,14 +152,42 @@ def run(settings_path: str) -> None:
                     )["technical_pullback"],
                 },
                 "final_rank": ranked.final_rank if ranked else None,
+                "review_score": ranked.review_score if ranked else None,
+                "score_inputs": ranked.score_inputs if ranked else {},
                 "peg": item["peg"],
                 "strategy_type": candidate.strategy_type if candidate else None,
                 "exit_signal": candidate.exit_signal.value if candidate else None,
                 "rationale": candidate.rationale if candidate else [],
                 "risks": risk_reasons,
                 "provider": candidate.provider if candidate else market_data.provider,
+                "macro_context": {
+                    "status": macro_status.value,
+                    "provider": market_data.macro_provider,
+                    "indicators": macro_indicators,
+                },
             }
         )
+    report = render_markdown_report(
+        generated_at=now,
+        macro_status=macro_status,
+        macro_indicators=macro_indicators,
+        ranked_candidates=ranked_candidates,
+        trade_guides=trade_guides,
+        portfolio=portfolio,
+        market_data_warnings=market_warnings,
+        telegram_delivery_status=None,
+    )
+    telegram_delivery_status = _send_telegram_report(report, settings)
+    report = render_markdown_report(
+        generated_at=now,
+        macro_status=macro_status,
+        macro_indicators=macro_indicators,
+        ranked_candidates=ranked_candidates,
+        trade_guides=trade_guides,
+        portfolio=portfolio,
+        market_data_warnings=market_warnings,
+        telegram_delivery_status=telegram_delivery_status,
+    )
     explain_log = ExplainLog(
         generated_at=now,
         macro_status=macro_status,
@@ -171,20 +201,18 @@ def run(settings_path: str) -> None:
         market_data_provider=market_data.provider,
         macro_provider=market_data.macro_provider,
         market_data_warnings=market_warnings,
+        telegram_delivery_status=telegram_delivery_status,
     )
     date_key = now.strftime("%Y-%m-%d")
     atomic_write_json(data_dir / "explain_logs" / f"explain_{date_key}.json", explain_log.model_dump(mode="json"))
-
-    report = render_markdown_report(
-        generated_at=now,
-        macro_status=macro_status,
-        macro_indicators=macro_indicators,
-        ranked_candidates=ranked_candidates,
-        trade_guides=trade_guides,
-        portfolio=portfolio,
-        market_data_warnings=market_warnings,
+    atomic_write_json(
+        data_dir / "reports" / f"report_{date_key}.json",
+        {
+            "generated_at": now.isoformat(),
+            "markdown": report,
+            "telegram_delivery_status": telegram_delivery_status,
+        },
     )
-    atomic_write_json(data_dir / "reports" / f"report_{date_key}.json", {"generated_at": now.isoformat(), "markdown": report})
     print(report)
 
 
@@ -229,6 +257,33 @@ def _build_portfolio_source(settings: dict) -> PortfolioSource:
 
 def _setting_or_env(settings: dict, key: str, env_name: str, default: str) -> str:
     return str(os.getenv(env_name) or settings.get(key) or default)
+
+
+def _send_telegram_report(report: str, settings: dict) -> str:
+    telegram_settings = get_nested(settings, "telegram", default={})
+    bot_token = _telegram_setting(telegram_settings, "bot_token", "AUTOSTOCK_TELEGRAM_BOT_TOKEN")
+    chat_id = _telegram_setting(telegram_settings, "chat_id", "AUTOSTOCK_TELEGRAM_CHAT_ID")
+    parse_mode = str(telegram_settings.get("parse_mode") or "MarkdownV2")
+    if not bot_token or not chat_id:
+        return "disabled"
+
+    client = TelegramClient(bot_token=bot_token, chat_id=chat_id, parse_mode=parse_mode)
+    message = render_telegram_markdown_v2(report) if parse_mode.lower() == "markdownv2" else report
+    try:
+        client.send_message(message)
+    except Exception as exc:
+        return f"failed:{sanitize_error_message(exc)}"
+    return "sent"
+
+
+def _telegram_setting(settings: dict, key: str, env_name: str) -> str:
+    value = str(os.getenv(env_name) or settings.get(key) or "")
+    return "" if _is_placeholder_secret(value) else value
+
+
+def _is_placeholder_secret(value: str) -> bool:
+    normalized = value.strip().upper()
+    return not normalized or normalized.startswith("REPLACE_WITH_")
 
 
 def main() -> None:

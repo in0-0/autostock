@@ -9,11 +9,38 @@ class PortfolioEngine:
         self.max_candidates = max_candidates
         self.target_position_ratio = target_position_ratio
 
-    def rank_candidates(self, candidates: list[Candidate]) -> list[Candidate]:
+    def rank_candidates(
+        self,
+        candidates: list[Candidate],
+        macro_status: MacroStatus = MacroStatus.NORMAL,
+    ) -> list[Candidate]:
         if len(candidates) < self.min_candidates:
             return []
-        ranked = sorted(candidates, key=lambda candidate: candidate.peg)[: self.max_candidates]
+        scored = [self._score_candidate(candidate, macro_status) for candidate in candidates]
+        ranked = sorted(scored, key=lambda candidate: (-(candidate.review_score or 0.0), candidate.peg))[: self.max_candidates]
         return [candidate.model_copy(update={"final_rank": index + 1}) for index, candidate in enumerate(ranked)]
+
+    def _score_candidate(self, candidate: Candidate, macro_status: MacroStatus) -> Candidate:
+        base_score = 0.0 if candidate.peg <= 0 else 100.0 / candidate.peg
+        macro_penalty = 0.85 if macro_status == MacroStatus.CAUTION else 1.0
+        review_score = round(base_score * macro_penalty, 4)
+        risks = list(candidate.risks)
+        if macro_status == MacroStatus.CAUTION and "macro_caution_penalty" not in risks:
+            risks.append("macro_caution_penalty")
+        score_inputs = {
+            "score_policy_version": "peg_macro_v1",
+            "peg": candidate.peg,
+            "base_score": round(base_score, 4),
+            "macro_status": macro_status.value,
+            "macro_penalty": macro_penalty,
+        }
+        return candidate.model_copy(
+            update={
+                "review_score": review_score,
+                "score_inputs": score_inputs,
+                "risks": risks,
+            }
+        )
 
     def build_trade_guides(
         self,

@@ -1,64 +1,97 @@
-# Roadmap
+# 로드맵
 
-**Last Updated:** 2026-05-31
-**Current Version:** v0.1.0 (In Development)
-**Next Version:** v0.2.0 (Spreadsheet Portfolio Analysis)
+**마지막 갱신:** 2026-06-01
+**현재 기준:** Google Sheets 기반 주말 매수 후보 리뷰 서비스
+**현재 버전:** v0.1.0 (개발 중)
+**다음 버전:** v0.2.0 (주말 후보 리뷰 MVP)
 
-## Completed Releases
+## 합의된 제품 정의
 
-> Release history: see [HISTORY.md](./HISTORY.md)
+AutoStock은 Google Sheets에 있는 개인 포트폴리오를 주말마다 점검하고,
+KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충분한 기업을
+정해진 기준으로 분석해 매수 후보 리뷰 목록을 만든 뒤 Telegram으로 알린다.
 
-## Upcoming Releases
+현재 단계의 매수 후보는 종목명, 티커, 점수/순위, 선정 근거, 리스크, 데이터
+출처를 포함한 검토 대상이다. 매수 수량, 목표 비중, 자동 리밸런싱, 자동 주문,
+실증권사 API 연결은 범위에서 제외한다.
 
-### v0.1.0 - Phase 1 Weekly Batch MVP
+## 완료된 릴리스
 
-**Goals:**
-- [x] Merge multi-broker snapshots through a mock connector.
-- [x] Evaluate macro, fundamental, technical, exit, and portfolio engines.
-- [x] Cache portfolio state, explain logs, and Telegram Markdown reports with atomic writes.
-- [x] Cover key Phase 1 behavior with regression tests.
+> 정식 릴리스 이력은 [HISTORY.md](./HISTORY.md)를 기준으로 한다. 현재 기록된
+> 정식 릴리스는 없다.
 
-### v0.2.0 - Spreadsheet Portfolio Analysis [Next]
+## 개발 기준선
 
-**Goals:**
-- [x] Add read-only Google Sheets portfolio ingestion through a source-neutral portfolio boundary.
-- [x] Extend `src/collectors/market_data.py` with pykrx/FDR live price provider fallback, cache/telemetry, calendar-aware weekly/monthly technical series, and an explicit Naver last-resort stub.
-- [x] Add provider failure handling and explain-log visibility for partial market data.
-- [x] Report buy candidates with rationale and risk notes, without order sizing or automatic rebalancing.
-- [ ] Keep full live macro/fundamental source coverage out of v0.2 unless a separate data-source decision is made; unavailable macro and incomplete fundamentals must remain conservative blockers.
+### v0.1.0 - 로컬 배치 기반선
 
-**Release Gate:**
-- [ ] Complete the final Ultragoal code-review/verifier checkpoints before tagging v0.2.0.
+**목표:**
+- [x] 단일 Python CLI로 포트폴리오 수집, 시장 데이터 평가, 리포트 생성을 실행한다.
+- [x] mock broker와 sample 데이터를 사용해 회귀 테스트 가능한 로컬 실행 경로를 제공한다.
+- [x] portfolio state, explain log, Telegram Markdown report를 로컬 JSON으로 저장한다.
+- [x] 핵심 Phase 1 동작을 `python3 -m pytest`로 검증한다.
 
-### v0.3.0 - Operations and Delivery
+**해석 변경:**
+- v0.1.0의 broker/mock 경로는 로컬 회귀 테스트와 호환성 기준선이다.
+- 현재 제품 방향의 중심 입력은 실증권사 API가 아니라 읽기 전용 Google Sheets다.
 
-**Goals:**
-- [ ] Add launchd plist templates for weekend and Sunday schedules.
-- [ ] Separate local sample settings from production credential settings.
-- [ ] Add Telegram delivery verification and retry behavior.
-- [ ] Add operational runbook for weekly review and rollback.
+## 예정 릴리스
 
-## Backlog
+### v0.2.0 - 주말 후보 리뷰 MVP [다음]
 
-### Broker Connectors
-- Korea Investment Open API account balance and holdings collection.
-- Kiwoom balance and holdings collection.
-- Credential loading pattern that keeps secrets outside tracked files.
+**목표:**
+- [x] Google Sheets 포트폴리오를 읽기 전용 입력 소스로 추가한다.
+- [x] CSV/TSV fixture가 Google Sheets와 같은 파서 경로를 사용하도록 한다.
+- [x] pykrx/FDR 가격 provider fallback, 캐시, telemetry, 주/월봉 resampling 기반을 추가한다.
+- [x] 후보 리포트에서 수량 산정과 자동 리밸런싱 표현을 제거하고 근거/리스크/출처 중심으로 정리한다.
+- [x] provider 실패와 데이터 부족을 explain log와 리포트 경고로 노출한다.
+- [ ] KOSPI/KOSDAQ 전체 스크리닝 유니버스를 정의하고 보유 종목 외 후보 탐색을 지원한다.
+- [ ] 재무제표 제공 기업을 판별할 수 있는 데이터 소스와 fallback 정책을 확정한다.
+- [x] 재무제표와 가격/거래량이 부족한 기업을 후보에서 제외하고 제외 사유를 재현 가능하게 기록한다.
+- [x] `NORMAL`, `CAUTION`, `RISK_OFF` 매크로 정책을 점수/순위/차단 동작에 명확히 반영한다.
+- [x] 후보별 점수 또는 순위 입력값, 선정 근거, 리스크, provider provenance를 explain log에 남긴다.
+- [x] Telegram 전송 성공/실패/비활성 상태를 검증하고 실행 로그에 남긴다.
+- [x] 주말 1회 실행 성공 기준을 CLI smoke, 테스트, 아티팩트 확인 로그로 고정한다.
 
-### Market Data
-- Provider fallback chain: pykrx -> FinanceDataReader -> Naver parser implementation.
-- Clear stale-data policy for weekly screening.
-- Provider-level telemetry in explain logs.
-- Live macro and fundamental data-source selection for production-grade live candidate generation.
+**릴리스 게이트:**
+- [x] `python3 -m pytest` 통과.
+- [x] Google Sheets fixture 기반 CLI smoke run 통과.
+- [ ] KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터 소스 결정.
+- [x] 데이터 부족/제외 사유가 explain log에 기록됨.
+- [x] `RISK_OFF`에서 후보가 전역 차단되고, `CAUTION`에서 감점 또는 하향 표시가 검증됨.
+- [x] Telegram 리포트가 후보 목록 또는 후보 없음 사유, 리스크 경고, 생성 시각을 포함함.
+- [x] 리포트에 수량 산정, 목표 비중, 주문 실행 지시가 나타나지 않음.
 
-### Strategy
-- Monday gap-up cap verification against weekly candidates.
-- Exit signal expansion beyond the initial MVP.
-- Portfolio sizing behavior for low-candidate environments.
-- Portfolio concentration, target-weight-gap, and existing-holding overlap filters after the spreadsheet MVP.
+### v0.3.0 - 운영 안정화
 
-## Long-term Vision
+**목표:**
+- [ ] 주말 실행 스케줄 템플릿을 추가한다. 운영 스케줄 변경은 별도 확인 후 진행한다.
+- [ ] sample/fixture 설정과 개인 운영 설정을 더 명확히 분리한다.
+- [ ] Telegram 전송 재시도와 실패 알림 정책을 강화한다.
+- [ ] 주말 실행 runbook, 롤백 절차, 검증 체크리스트를 문서화한다.
+- [ ] provider rate limit, stale cache, 부분 실패 기준을 운영 로그에 명확히 남긴다.
 
-- Reliable weekend automation that produces auditable investment guidance without manual spreadsheet work.
-- Provider-agnostic broker and market data collection with graceful partial success.
-- Transparent recommendations where every filter and final action is explainable from local artifacts.
+## 백로그
+
+### 데이터 소스
+- KOSPI/KOSDAQ 전체 종목 유니버스 provider 선정.
+- 재무제표 provider 선정과 신규 외부 API/패키지 필요 여부 검토.
+- 가격/거래량 provider fallback의 stale-data 정책 강화.
+- provider별 출처, 실패, 캐시 사용 여부를 explain log에 일관되게 기록.
+
+### 전략과 리포트
+- 후보 점수 산식과 순위 기준을 명확한 입력값으로 기록.
+- 기존 보유 종목과 신규 후보의 중복/겹침 표시.
+- 월요일 갭상승 같은 실행 시점 리스크를 후보 리스크 문구로 반영.
+- Telegram 메시지 길이 제한과 후보 수 제한 정책 정리.
+
+### 현재 단계 밖
+- 실증권사 API 계좌/잔고 수집.
+- 자동 주문, 매수 수량 계산, 목표 비중 추천, 자동 리밸런싱.
+- 호스팅 서비스화.
+- 운영 스케줄 변경.
+
+## 장기 방향
+
+- 매주 재현 가능한 후보 리뷰를 자동 생성하는 보수적 투자 보조 도구.
+- 모든 후보 선정과 제외 사유를 로컬 아티팩트로 감사할 수 있는 시스템.
+- provider가 바뀌어도 제품 경계와 안전 정책이 흔들리지 않는 구조.

@@ -12,10 +12,15 @@ def _above_moving_average(values: list[float], window: int) -> bool:
 
 class MacroEngine:
     def evaluate(self, macro_data: dict) -> tuple[MacroStatus, dict]:
-        kospi_above = _above_moving_average(macro_data["kospi_monthly_close"], 10)
-        kosdaq_above = _above_moving_average(macro_data["kosdaq_monthly_close"], 10)
+        kospi_values = macro_data.get("kospi_monthly_close") or []
+        kosdaq_values = macro_data.get("kosdaq_monthly_close") or []
+        macro_data_available = len(kospi_values) >= 10 and len(kosdaq_values) >= 10
+        kospi_above = _above_moving_average(kospi_values, 10)
+        kosdaq_above = _above_moving_average(kosdaq_values, 10)
 
-        if kospi_above and kosdaq_above:
+        if not macro_data_available:
+            status = MacroStatus.CAUTION
+        elif kospi_above and kosdaq_above:
             status = MacroStatus.NORMAL
         elif kospi_above and not kosdaq_above:
             status = MacroStatus.CAUTION
@@ -27,5 +32,7 @@ class MacroEngine:
             "kosdaq_above_10ma": kosdaq_above,
             "us_rate": macro_data.get("us_rate"),
             "yield_curve_10y2y": macro_data.get("yield_curve_10y2y"),
+            "macro_data_available": macro_data_available,
+            "macro_data_unavailable": not macro_data_available,
         }
         return status, indicators

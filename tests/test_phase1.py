@@ -35,6 +35,7 @@ from src.collectors.portfolio_source import (
     merge_portfolio_sources,
 )
 from src.engines.fundamental import FundamentalEngine
+from src.engines.macro import MacroEngine
 from src.engines.portfolio import PortfolioEngine
 from src.models import (
     Candidate,
@@ -44,7 +45,7 @@ from src.models import (
     RecommendationAction,
     TechnicalRecord,
 )
-from src.main import _build_portfolio_source
+from src.main import _build_portfolio_source, _send_telegram_report
 from src.reporting import render_markdown_report
 from src.utils.atomic import atomic_write_json
 
@@ -628,7 +629,7 @@ class Phase1Tests(unittest.TestCase):
 
         self.assertIn("provider_warning:missing_full_fundamental_fields:pykrx", warnings)
 
-    def test_candidate_completeness_blocks_macro_unavailable_provider_warning(self) -> None:
+    def test_candidate_completeness_keeps_macro_unavailable_as_context(self) -> None:
         fundamental = FundamentalRecord(
             ticker="005930",
             name="삼성전자",
@@ -657,7 +658,79 @@ class Phase1Tests(unittest.TestCase):
             provider_warnings=["macro_data_unavailable:fixture_realistic"],
         )
 
-        self.assertIn("provider_warning:macro_data_unavailable:fixture_realistic", warnings)
+        self.assertNotIn("provider_warning:macro_data_unavailable:fixture_realistic", warnings)
+
+    def test_macro_unavailable_is_caution_not_risk_off(self) -> None:
+        status, indicators = MacroEngine().evaluate(load_unavailable_macro())
+
+        self.assertEqual(status, MacroStatus.CAUTION)
+        self.assertTrue(indicators["macro_data_unavailable"])
+
+    def test_partial_macro_payload_is_caution_context(self) -> None:
+        status, indicators = MacroEngine().evaluate({"kospi_monthly_close": [2500] * 12})
+
+        self.assertEqual(status, MacroStatus.CAUTION)
+        self.assertTrue(indicators["macro_data_unavailable"])
+
+    def test_candidate_ranking_records_score_inputs_and_caution_penalty(self) -> None:
+        candidate = Candidate(
+            ticker="005930",
+            name="삼성전자",
+            peg=0.5,
+            strategy_type="WEEKLY_20MA_PULLBACK",
+            current_price=50_000,
+        )
+
+        ranked = PortfolioEngine(1, 10, 0.20).rank_candidates([candidate], MacroStatus.CAUTION)
+
+        self.assertEqual(ranked[0].final_rank, 1)
+        self.assertEqual(ranked[0].review_score, 170.0)
+        self.assertEqual(ranked[0].score_inputs["score_policy_version"], "peg_macro_v1")
+        self.assertEqual(ranked[0].score_inputs["macro_status"], "CAUTION")
+        self.assertEqual(ranked[0].score_inputs["macro_penalty"], 0.85)
+        self.assertIn("macro_caution_penalty", ranked[0].risks)
+
+    def test_telegram_delivery_status_disabled_sent_and_failed_are_sanitized(self) -> None:
+        self.assertEqual(_send_telegram_report("report", {"telegram": {"bot_token": "", "chat_id": ""}}), "disabled")
+        self.assertEqual(
+            _send_telegram_report(
+                "report",
+                {"telegram": {"bot_token": "REPLACE_WITH_LOCAL_TELEGRAM_BOT_TOKEN", "chat_id": "REPLACE_WITH_LOCAL_TELEGRAM_CHAT_ID"}},
+            ),
+            "disabled",
+        )
+
+        with patch("src.main.TelegramClient") as client_class:
+            client_class.return_value.send_message.return_value = None
+            status = _send_telegram_report("A_B (report)", {"telegram": {"bot_token": "safe-token", "chat_id": "safe-chat"}})
+
+        self.assertEqual(status, "sent")
+        client_class.return_value.send_message.assert_called_once_with(r"A\_B \(report\)")
+
+        with patch("src.main.TelegramClient") as client_class:
+            client_class.return_value.send_message.side_effect = RuntimeError(
+                "https://api.telegram.org/botsecret/sendMessage token=secret chat_id=1234567890123456789012345"
+            )
+            status = _send_telegram_report("report", {"telegram": {"bot_token": "safe-token", "chat_id": "safe-chat"}})
+
+        self.assertTrue(status.startswith("failed:"))
+        self.assertIn("[url]", status)
+        self.assertIn("token=[redacted]", status)
+        self.assertIn("chat_id=[redacted]", status)
+        self.assertNotIn("botsecret", status)
+
+        with patch("src.main.TelegramClient") as client_class:
+            client_class.return_value.send_message.side_effect = RuntimeError(
+                "{'chat_id': '123456789', \"token\": \"shortsecret\", 'password': 'hunter2'}"
+            )
+            status = _send_telegram_report("report", {"telegram": {"bot_token": "safe-token", "chat_id": "safe-chat"}})
+
+        self.assertIn("chat_id=[redacted]", status)
+        self.assertIn("token=[redacted]", status)
+        self.assertIn("password=[redacted]", status)
+        self.assertNotIn("123456789", status)
+        self.assertNotIn("shortsecret", status)
+        self.assertNotIn("hunter2", status)
 
     def test_all_market_data_provider_failures_are_visible_in_report(self) -> None:
         bundle = load_market_data_with_fallback([FailingProvider()])
@@ -821,11 +894,18 @@ class Phase1Tests(unittest.TestCase):
             self.assertEqual(explain["market_data_provider"], "fixture_realistic")
             self.assertEqual(explain["macro_provider"], "fixture_realistic")
             self.assertEqual(explain["items"][0]["provider"], "fixture_realistic")
+            self.assertEqual(explain["items"][0]["final_rank"], 1)
+            self.assertGreater(explain["items"][0]["review_score"], 0)
+            self.assertEqual(explain["items"][0]["score_inputs"]["macro_status"], "NORMAL")
             self.assertEqual(explain["portfolio_source_type"], "google_sheets")
             self.assertEqual(explain["source_warnings"], [])
             self.assertEqual(explain["failed_sources"], [])
+            self.assertEqual(explain["telegram_delivery_status"], "disabled")
+            report_payload = json.loads(report_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(report_payload["telegram_delivery_status"], "disabled")
+            self.assertIn("포트폴리오 점검 요약", report_payload["markdown"])
 
-    def test_cli_with_missing_fixture_macro_blocks_buy_candidates(self) -> None:
+    def test_cli_with_missing_fixture_macro_keeps_candidates_with_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             portfolio_fixture = root / "portfolio.csv"
@@ -917,13 +997,17 @@ class Phase1Tests(unittest.TestCase):
 
             explain_files = list((data_dir / "explain_logs").glob("explain_*.json"))
             self.assertTrue(explain_files)
-            self.assertIn("검토 가능한 신규 매수 후보가 없습니다.", completed.stdout)
-            self.assertNotIn("1. 삼성전자", completed.stdout)
+            self.assertIn("CAUTION", completed.stdout)
+            self.assertIn("1. 삼성전자", completed.stdout)
+            self.assertIn("macro_data_unavailable:fixture_realistic", completed.stdout)
             explain = json.loads(explain_files[0].read_text(encoding="utf-8"))
+            self.assertEqual(explain["macro_status"], "CAUTION")
             self.assertEqual(explain["macro_provider"], "unavailable")
             self.assertIn("macro_data_unavailable:fixture_realistic", explain["market_data_warnings"])
-            self.assertIsNone(explain["items"][0]["final_rank"])
-            self.assertIn("provider_warning:macro_data_unavailable:fixture_realistic", explain["items"][0]["risks"])
+            self.assertEqual(explain["items"][0]["final_rank"], 1)
+            self.assertEqual(explain["items"][0]["score_inputs"]["macro_status"], "CAUTION")
+            self.assertIn("macro_data_unavailable:fixture_realistic", explain["items"][0]["risks"])
+            self.assertIn("macro_caution_penalty", explain["items"][0]["risks"])
 
     def test_cli_with_macro_risk_off_blocks_buy_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

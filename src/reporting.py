@@ -15,9 +15,14 @@ def render_markdown_report(
     trade_guides: list[TradeGuide],
     portfolio: PortfolioState,
     market_data_warnings: list[str] | None = None,
+    telegram_delivery_status: str | None = "disabled",
 ) -> str:
     market_data_warnings = market_data_warnings or []
     lines: list[str] = []
+    lines.append("📌 포트폴리오 점검 요약")
+    lines.append("--------------------------------")
+    lines.append(f"평가금액: {portfolio.total_krw_evaluation:,}원 | 현금: {portfolio.total_krw_deposit:,}원 | 보유 종목: {len(portfolio.positions)}개")
+    lines.append("")
     lines.append("📊 이번 주 거시 시장 상태")
     lines.append("--------------------------------")
     lines.append(f"{macro_status.value} | KOSPI 10MA: {macro_indicators['kospi_above_10ma']} | KOSDAQ 10MA: {macro_indicators['kosdaq_above_10ma']}")
@@ -27,7 +32,8 @@ def render_markdown_report(
     lines.append("--------------------------------")
     if ranked_candidates:
         for candidate in ranked_candidates:
-            lines.append(f"{candidate.final_rank}. {candidate.name} ({candidate.ticker}) | PEG: {candidate.peg:.2f} | TAG: {candidate.strategy_type}")
+            score_text = f" | 점수: {candidate.review_score:.2f}" if candidate.review_score is not None else ""
+            lines.append(f"{candidate.final_rank}. {candidate.name} ({candidate.ticker}) | PEG: {candidate.peg:.2f}{score_text} | TAG: {candidate.strategy_type}")
             if candidate.rationale:
                 lines.append(f"   - 근거: {', '.join(candidate.rationale)}")
             if candidate.risks:
@@ -46,6 +52,8 @@ def render_markdown_report(
         lines.append(f"- 포트폴리오 입력 경고: {warning}")
     for warning in market_data_warnings:
         lines.append(f"- 시장데이터 경고: {warning}")
+    if telegram_delivery_status is not None:
+        lines.append(f"- Telegram 전송 상태: {telegram_delivery_status}")
     if portfolio.ip_changed_flag:
         lines.append("- 공인 IP 변경 감지: 증권사 화이트리스트 확인 필요")
     if not failed_sources and not portfolio.source_warnings and not market_data_warnings and not portfolio.ip_changed_flag:

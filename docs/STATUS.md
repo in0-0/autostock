@@ -1,44 +1,67 @@
-# Project Status
+# 프로젝트 상태
 
-**Last Updated:** 2026-05-31
-**Status:** v0.1.0 IN DEVELOPMENT
-**Current Version:** v0.1.0
+**마지막 갱신:** 2026-06-01
+**상태:** v0.2.0 서비스 스펙 구현 검증 중
+**현재 버전:** v0.1.0 (개발 중)
 
-## Version Plan
+## 현재 제품 정의
 
-> Previous releases: see [HISTORY.md](./HISTORY.md)
+AutoStock은 Google Sheets에 있는 개인 포트폴리오를 주말마다 점검하고,
+KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충분한 기업을
+분석해 매수 후보 리뷰 목록을 만들며, 결과를 Telegram으로 전달하는 로컬 우선
+배치 서비스다.
 
-| Version | Focus | Status |
-|---------|-------|--------|
-| **v0.1.0** | Phase 1 weekly batch MVP hardening | Current |
-| **v0.2.0** | Spreadsheet portfolio analysis with live price fallback | Next |
-| **v0.3.0** | Scheduling, alerting, and operational safety | Future |
+현재 단계에서는 후보 목록만 제공한다. 자동 주문, 매수 수량 계산, 목표 비중,
+자동 리밸런싱, 실증권사 API 연결은 하지 않는다.
 
-## System Health
+## 버전 계획
 
-| Area | Status | Check |
-|------|--------|-------|
-| CLI pipeline | Available | `python3 -m src.main --settings config/settings.yaml` |
-| Regression tests | Available | `python3 -m pytest` |
-| Broker integration | Mock only | `src.brokers.mock.MockBrokerConnector` |
-| Runtime output | Local JSON | `data/portfolio_state.json`, `data/reports/`, `data/explain_logs/` |
+> 과거 릴리스는 [HISTORY.md](./HISTORY.md)를 기준으로 한다.
 
-## Open Issues
+| 버전 | 초점 | 상태 |
+|------|------|------|
+| **v0.1.0** | 로컬 CLI, mock/sample 기반 회귀 테스트, JSON 아티팩트 저장 | 개발 기준선 |
+| **v0.2.0** | Google Sheets 기반 주말 후보 리뷰 MVP | 다음 목표 |
+| **v0.3.0** | 운영 스케줄, Telegram 재시도, runbook, 운영 안전성 | 이후 |
 
-| Priority | Count | Notes |
-|----------|-------|-------|
-| P0-P1 | 0 | None recorded |
-| P2 | 4 | Live macro/fundamental sources remain future production-readiness work |
-| P3+ | 0 | None recorded |
+## 시스템 상태
 
-## Recent Changes
+| 영역 | 상태 | 확인 기준 |
+|------|------|-----------|
+| CLI 파이프라인 | 사용 가능 | `python3 -m src.main --settings config/settings.yaml` |
+| 회귀 테스트 | 사용 가능 | `python3 -m pytest` |
+| Google Sheets 입력 | 구현됨 | 읽기 전용 parser, CSV/TSV fixture, source-neutral portfolio boundary |
+| 포트폴리오 병합 | 구현됨 | 같은 티커의 행을 통합하고 source warning을 기록 |
+| 가격 데이터 | 부분 구현 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry |
+| 재무제표 데이터 | 미완성 | KOSPI/KOSDAQ 전체 후보화를 위한 실제 커버리지 필요 |
+| 후보 리포트 | 구현됨 | 근거, 리스크, provider 출처, 점수, 점수 입력값 기록 |
+| 매크로 정책 | 구현됨 | `RISK_OFF` 차단, `CAUTION` 감점/리스크 표시, 매크로 데이터 부족 컨텍스트 기록 |
+| Telegram | 구현됨 | Markdown 렌더링, 실제 전송 시도, `sent`/`failed:<redacted>`/`disabled` 상태 기록 |
+| 증권사 연동 | 현재 범위 밖 | mock connector는 기준선/호환 경로로만 유지 |
+| 런타임 출력 | 구현됨 | `data/portfolio_state.json`, `data/reports/`, `data/explain_logs/` |
 
-- Added spreadsheet portfolio analysis planning, provider fallback telemetry, and external review triage.
-- Fixed the reviewed real-provider technical-series plan to require calendar-aware weekly/monthly resampling.
+## 열린 이슈
 
-## Next Up
+| 우선순위 | 항목 | 이유 |
+|----------|------|------|
+| P0 | KOSPI/KOSDAQ 유니버스와 재무제표 provider 결정 | v0.2.0 후보 탐색 범위의 핵심 전제 |
+| P0 | 라이브 재무제표 provider 결정 | 신규 외부 API/패키지와 데이터 라이선스 확인이 필요함 |
+| P1 | 실제 Google Sheets/Telegram credential smoke | 로컬 비추적 credential이 있어야 운영 경로를 확인할 수 있음 |
+| P2 | sample/fixture 설정과 개인 운영 설정 분리 | 실데이터 실행에서 샘플 대체를 방지해야 함 |
 
-v0.2.0 - harden spreadsheet portfolio analysis with read-only Google Sheets input,
-live price provider fallback/cache/telemetry, conservative incomplete-data gates,
-and candidate rationale/risk reporting. Full live macro/fundamental source
-coverage and real broker connectors remain future work.
+## 최근 변경
+
+- 서비스 정체성을 Google Sheets 기반 주말 후보 리뷰 서비스로 정리했다.
+- 현재 단계의 비목표를 명확히 했다: 실증권사 API, 자동 주문, 수량 계산, 목표 비중, 자동 리밸런싱 제외.
+- v0.2.0 범위를 KOSPI/KOSDAQ 전체 후보 탐색, 재무제표/가격 데이터 완성도, explain log, Telegram 검증 중심으로 재정렬했다.
+- 기존 mock broker 기반 흐름은 제품 중심이 아니라 로컬 회귀 테스트와 호환 기준선으로 재해석했다.
+- 매크로 데이터 부족은 샘플 대체나 전역 위험 차단이 아니라 `CAUTION` 컨텍스트로 기록하고 후보 점수에 감점한다.
+- 후보 순위는 재현 가능한 `review_score`, `score_policy_version`, `score_inputs`를 explain log와 리포트에 남긴다.
+- Telegram 전송 상태는 실행 산출물에 `disabled`, `sent`, `failed:<redacted>` 중 하나로 남긴다.
+
+## 다음 작업
+
+v0.2.0의 남은 주요 제품 결정은 KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터
+소스다. 신규 외부 API나 패키지가 필요하면 별도 확인 후 진행한다. 운영 검증은
+비추적 로컬 설정으로 실제 Google Sheets 읽기와 Telegram test chat 발송을 확인한
+뒤 v0.3.0의 스케줄/재시도/runbook 범위로 넘긴다.

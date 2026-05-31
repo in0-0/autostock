@@ -137,6 +137,8 @@ class Candidate(Serializable):
     provider: str | None = None
     exit_signal: ExitSignal = ExitSignal.NONE
     final_rank: int | None = None
+    review_score: float | None = None
+    score_inputs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -165,3 +167,4 @@ class ExplainLog(Serializable):
     market_data_provider: str | None = None
     macro_provider: str | None = None
     market_data_warnings: list[str] = field(default_factory=list)
+    telegram_delivery_status: str = "disabled"

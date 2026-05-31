@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import hashlib
 import math
-import re
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
@@ -12,6 +11,7 @@ from typing import Protocol
 
 from src.models import FundamentalRecord, TechnicalRecord
 from src.utils.atomic import atomic_write_json
+from src.utils.redaction import sanitize_error_message
 
 
 MARKET_DATA_CACHE_SCHEMA_VERSION = 2
@@ -368,7 +368,7 @@ def candidate_completeness_warnings(
     if not provider or provider == "none":
         warnings.append("missing_provider_provenance")
     for provider_warning in provider_warnings or []:
-        if provider_warning.startswith(("stale_", "missing_full_fundamental_fields", "macro_data_unavailable")):
+        if provider_warning.startswith(("stale_", "missing_full_fundamental_fields")):
             warnings.append(f"provider_warning:{provider_warning}")
     return warnings
 
@@ -554,22 +554,7 @@ def _macro_from_payload(payload: dict, provider_name: str) -> tuple[dict, str, l
 
 
 def _sanitize_error_message(exc: Exception) -> str:
-    message = str(exc) or exc.__class__.__name__
-    message = re.sub(r"https?://\S+", "[url]", message)
-    message = re.sub(r"(/Users/\S+|/private/\S+|/var/\S+|[A-Za-z]:\\\S+)", "[path]", message)
-    message = re.sub(
-        r"(?i)(?:^|(?<=\s))((?:\.{1,2}/)?(?:[\w.-]+/)*[\w.-]*(?:credential|secret|token|service-account|account)[\w.-]*\.(?:json|ya?ml|toml|env|txt))",
-        "[path]",
-        message,
-    )
-    secret_key_pattern = (
-        r"(?i)\b(token|secret|credential|credentials_path|credential_path|password|api[_-]?key|"
-        r"spreadsheet[_-]?id|sheet[_-]?id|account[_-]?id|chat[_-]?id|client[_-]?email)\b"
-        r"\s*(?:=|:)?\s*[^\s,;]+"
-    )
-    message = re.sub(secret_key_pattern, lambda match: f"{match.group(1)}=[redacted]", message)
-    message = re.sub(r"\b[A-Za-z0-9_-]{24,}\b", "[id]", message)
-    return message
+    return sanitize_error_message(exc)
 
 
 def _incomplete_fundamental(ticker: str, name: str) -> FundamentalRecord:
