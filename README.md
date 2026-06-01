@@ -20,6 +20,10 @@ python -m src.main --settings config/settings.yaml
 ```
 
 현재 기본 설정은 `MockBrokerConnector`를 사용하므로 외부 증권사 API 없이도 파이프라인을 검증할 수 있습니다.
+실제 Google Sheets 입력과 Telegram 전송으로 실행할 때는
+[`docs/guides/SPREADSHEET_PORTFOLIO.md`](docs/guides/SPREADSHEET_PORTFOLIO.md)를 따라
+`config/settings.local.yaml`을 만들고, `portfolio_source.type`과 `market_data.mode`를
+함께 확인해야 합니다.
 
 ## 주요 산출물
 
