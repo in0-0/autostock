@@ -110,6 +110,14 @@ def run(settings_path: str) -> None:
             allowed_source_risks=allowed_source_risks,
             source_risks=_candidate_source_risks(fundamental, market_data, universe_records),
         )
+        completeness_warnings = list(
+            dict.fromkeys(
+                [
+                    *market_data.exclusion_reasons.get(fundamental.ticker, []),
+                    *completeness_warnings,
+                ]
+            )
+        )
         if completeness_warnings:
             incomplete_candidate_reasons[fundamental.ticker] = completeness_warnings
             continue

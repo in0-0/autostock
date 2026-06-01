@@ -1659,6 +1659,112 @@ class Phase1Tests(unittest.TestCase):
             report_payload = json.loads(report_files[0].read_text(encoding="utf-8"))
             self.assertIn("source_risk_blocked: 1개", report_payload["markdown"])
 
+    def test_cli_excludes_source_disagreement_before_ranking(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            portfolio_fixture = root / "portfolio.csv"
+            market_fixture = root / "market.json"
+            settings_path = root / "settings.yaml"
+            data_dir = root / "data"
+
+            portfolio_fixture.write_text(
+                "\n".join(
+                    [
+                        "종목코드,종목명,보유수량,평균매수가,현재가,평가금액",
+                        "069500,KODEX 200,51,\"72,034\",130600,\"6,660,600\"",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            market_fixture.write_text(
+                json.dumps(
+                    {
+                        "provider": "fixture_realistic",
+                        "macro": {
+                            "kospi_monthly_close": [2500, 2520, 2540, 2580, 2600, 2640, 2660, 2680, 2710, 2740, 2760],
+                            "kosdaq_monthly_close": [800, 810, 820, 835, 840, 850, 860, 870, 882, 895, 905],
+                            "us_rate": 0.0525,
+                            "yield_curve_10y2y": -0.0012,
+                        },
+                        "fundamentals": [
+                            {
+                                "ticker": "005930",
+                                "name": "삼성전자",
+                                "industry": "MANUFACTURING",
+                                "roe_3y_avg": 0.12,
+                                "debt_ratio": 0.31,
+                                "operating_margin": 0.11,
+                                "net_income_growth": 0.18,
+                                "operating_income_growth": 0.16,
+                                "previous_net_income": 10000,
+                                "current_net_income": 11800,
+                                "peg": 0.42,
+                            }
+                        ],
+                        "technicals": {
+                            "005930": {
+                                "ticker": "005930",
+                                "monthly_close": [90, 92, 94, 96, 99, 101, 104, 106, 108, 111, 114, 117, 119, 121, 124, 126, 129, 132, 134, 137, 140],
+                                "weekly_close": [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 112],
+                                "weekly_volume": [1000000, 1100000, 1050000, 980000, 800000],
+                                "listed_weeks": 1000,
+                            }
+                        },
+                        "current_prices": {"005930": 112},
+                        "exclusion_reasons": {"005930": ["source_disagreement_price"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            settings_path.write_text(
+                "\n".join(
+                    [
+                        "app:",
+                        f"  data_dir: {data_dir}",
+                        "  broker_connectors: []",
+                        "portfolio_source:",
+                        "  type: google_sheets",
+                        "  google_sheets:",
+                        "    spreadsheet_id: \"\"",
+                        "    range: \"Portfolio!A:AF\"",
+                        f"    fixture_path: {portfolio_fixture}",
+                        "market_data:",
+                        "  mode: fixture",
+                        f"  fixture_path: {market_fixture}",
+                        "strategy:",
+                        "  max_candidates: 10",
+                        "  min_candidates: 1",
+                        "  target_position_ratio: 0.20",
+                        "  fundamental_filter:",
+                        "    roe_3y_avg_min: 0.10",
+                        "    debt_ratio_max: 1.50",
+                        "    min_operating_margin:",
+                        "      DEFAULT: 0.08",
+                        "      MANUFACTURING: 0.05",
+                        "    max_growth_divergence: 0.30",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [sys.executable, "-m", "src.main", "--settings", str(settings_path)],
+                cwd=Path(__file__).resolve().parents[1],
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+            explain_files = list((data_dir / "explain_logs").glob("explain_*.json"))
+            self.assertTrue(explain_files)
+            self.assertNotIn("1. 삼성전자", completed.stdout)
+            self.assertIn("source_disagreement_price: 1개", completed.stdout)
+            explain = json.loads(explain_files[0].read_text(encoding="utf-8"))
+            self.assertIsNone(explain["items"][0]["final_rank"])
+            self.assertEqual(explain["exclusion_counts"]["source_disagreement_price"], 1)
+            self.assertIn("source_disagreement_price", explain["items"][0]["risks"])
+
 
 class FakeSheetsService:
     def __init__(self, values: list[list[str]]) -> None:

@@ -108,6 +108,8 @@ class FixtureMarketDataProvider:
             telemetry=[ProviderTelemetry(provider=provider_name, success=True)],
             stale_warnings=[*list(payload.get("stale_warnings", [])), *macro_warnings],
             macro_provider=macro_provider,
+            exclusion_reasons={str(ticker): list(reasons) for ticker, reasons in payload.get("exclusion_reasons", {}).items()},
+            latest_trade_dates={str(ticker): str(value) for ticker, value in payload.get("latest_trade_dates", {}).items()},
         )
 
 
