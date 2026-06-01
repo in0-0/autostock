@@ -44,8 +44,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - [x] pykrx/FDR 가격 provider fallback, 캐시, telemetry, 주/월봉 resampling 기반을 추가한다.
 - [x] 후보 리포트에서 수량 산정과 자동 리밸런싱 표현을 제거하고 근거/리스크/출처 중심으로 정리한다.
 - [x] provider 실패와 데이터 부족을 explain log와 리포트 경고로 노출한다.
-- [ ] KOSPI/KOSDAQ 전체 스크리닝 유니버스를 정의하고 보유 종목 외 후보 탐색을 지원한다.
-- [ ] 재무제표 제공 기업을 판별할 수 있는 데이터 소스와 fallback 정책을 확정한다.
+- [x] KOSPI/KOSDAQ 전체 스크리닝 유니버스를 정의하고 보유 종목 외 후보 탐색을 지원한다.
+- [x] 재무제표 제공 기업을 판별할 수 있는 데이터 소스와 fallback 정책을 확정한다.
 - [x] 재무제표와 가격/거래량이 부족한 기업을 후보에서 제외하고 제외 사유를 재현 가능하게 기록한다.
 - [x] `NORMAL`, `CAUTION`, `RISK_OFF` 매크로 정책을 점수/순위/차단 동작에 명확히 반영한다.
 - [x] 후보별 점수 또는 순위 입력값, 선정 근거, 리스크, provider provenance를 explain log에 남긴다.
@@ -55,7 +55,7 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 **릴리스 게이트:**
 - [x] `python3 -m pytest` 통과.
 - [x] Google Sheets fixture 기반 CLI smoke run 통과.
-- [ ] KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터 소스 결정.
+- [x] KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터 소스 결정.
 - [x] 데이터 부족/제외 사유가 explain log에 기록됨.
 - [x] `RISK_OFF`에서 후보가 전역 차단되고, `CAUTION`에서 감점 또는 하향 표시가 검증됨.
 - [x] Telegram 리포트가 후보 목록 또는 후보 없음 사유, 리스크 경고, 생성 시각을 포함함.
@@ -73,8 +73,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 ## 백로그
 
 ### 데이터 소스
-- KOSPI/KOSDAQ 전체 종목 유니버스 provider 선정.
-- 재무제표 provider 선정과 신규 외부 API/패키지 필요 여부 검토.
+- KOSPI/KOSDAQ 전체 종목 유니버스 provider 구현 후 bounded live smoke.
+- OpenDART 재무제표 provider 구현 후 API key 기반 coverage smoke.
 - 가격/거래량 provider fallback의 stale-data 정책 강화.
 - provider별 출처, 실패, 캐시 사용 여부를 explain log에 일관되게 기록.
 

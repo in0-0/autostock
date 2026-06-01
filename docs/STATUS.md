@@ -32,8 +32,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 | 회귀 테스트 | 사용 가능 | `python3 -m pytest` |
 | Google Sheets 입력 | 구현됨 | 읽기 전용 parser, CSV/TSV fixture, source-neutral portfolio boundary |
 | 포트폴리오 병합 | 구현됨 | 같은 티커의 행을 통합하고 source warning을 기록 |
-| 가격 데이터 | 부분 구현 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry |
-| 재무제표 데이터 | 미완성 | KOSPI/KOSDAQ 전체 후보화를 위한 실제 커버리지 필요 |
+| 가격 데이터 | 구현 보강 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry, KOSPI/KOSDAQ universe 자동 해석 |
+| 재무제표 데이터 | 구현됨 / live smoke 대기 | OpenDART 정규화 provider, corp-code cache, field provenance, missing-field exclusion 구현; 실제 API key 기반 coverage smoke 필요 |
 | 후보 리포트 | 구현됨 | 근거, 리스크, provider 출처, 점수, 점수 입력값 기록 |
 | 매크로 정책 | 구현됨 | `RISK_OFF` 차단, `CAUTION` 감점/리스크 표시, 매크로 데이터 부족 컨텍스트 기록 |
 | Telegram | 구현됨 | Markdown 렌더링, 실제 전송 시도, `sent`/`failed:<redacted>`/`disabled` 상태 기록 |
@@ -44,8 +44,7 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 | 우선순위 | 항목 | 이유 |
 |----------|------|------|
-| P0 | KOSPI/KOSDAQ 유니버스와 재무제표 provider 결정 | v0.2.0 후보 탐색 범위의 핵심 전제 |
-| P0 | 라이브 재무제표 provider 결정 | 신규 외부 API/패키지와 데이터 라이선스 확인이 필요함 |
+| P0 | OpenDART/pykrx bounded live smoke | 구현은 완료됐지만 로컬 API key와 네트워크 기반 실제 coverage 확인이 필요함 |
 | P1 | 실제 Google Sheets/Telegram credential smoke | 로컬 비추적 credential이 있어야 운영 경로를 확인할 수 있음 |
 | P2 | sample/fixture 설정과 개인 운영 설정 분리 | 실데이터 실행에서 샘플 대체를 방지해야 함 |
 
@@ -58,10 +57,11 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - 매크로 데이터 부족은 샘플 대체나 전역 위험 차단이 아니라 `CAUTION` 컨텍스트로 기록하고 후보 점수에 감점한다.
 - 후보 순위는 재현 가능한 `review_score`, `score_policy_version`, `score_inputs`를 explain log와 리포트에 남긴다.
 - Telegram 전송 상태는 실행 산출물에 `disabled`, `sent`, `failed:<redacted>` 중 하나로 남긴다.
+- KOSPI/KOSDAQ universe provider, OpenDART 재무 정규화, provider별 cache/freshness 정책, exclusion count 리포팅을 추가했다.
 
 ## 다음 작업
 
-v0.2.0의 남은 주요 제품 결정은 KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터
-소스다. 신규 외부 API나 패키지가 필요하면 별도 확인 후 진행한다. 운영 검증은
-비추적 로컬 설정으로 실제 Google Sheets 읽기와 Telegram test chat 발송을 확인한
-뒤 v0.3.0의 스케줄/재시도/runbook 범위로 넘긴다.
+v0.2.0의 주요 데이터-source 결정은 pykrx/FDR + OpenDART 경로로 구현됐다. 남은
+검증은 비추적 로컬 설정에서 OpenDART API key, 실제 Google Sheets 읽기, Telegram
+test chat 발송, bounded `max_universe_size` real smoke를 확인하는 것이다. 운영 스케줄,
+재시도, runbook은 v0.3.0 범위로 넘긴다.
