@@ -17,6 +17,15 @@ portfolio_source:
 market_data:
   mode: sample
   universe: []
+  universe_provider:
+    enabled: true
+    markets:
+      - KOSPI
+      - KOSDAQ
+    exclude_etf: true
+    exclude_etn: true
+    exclude_konex: true
+    max_universe_size: null
   lookback_days: 460
   fixture_path: ""
   request_delay_seconds: 0.0
@@ -26,6 +35,11 @@ market_data:
     price_max_age_days: 3
     technical_weekly_max_age_days: 10
     fundamental_max_age_days: 120
+
+financial_data:
+  provider: opendart
+  dart_api_key: ""
+  dart_api_key_env: AUTOSTOCK_DART_API_KEY
 
 strategy:
   max_candidates: 10

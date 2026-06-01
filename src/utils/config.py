@@ -68,6 +68,8 @@ def _load_simple_yaml(text: str) -> dict[str, Any]:
 
 
 def _parse_scalar(value: str) -> Any:
+    if value in {"null", "Null", "NULL", "~"}:
+        return None
     if value in {"true", "True"}:
         return True
     if value in {"false", "False"}:

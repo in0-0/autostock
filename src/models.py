@@ -173,3 +173,4 @@ class ExplainLog(Serializable):
     macro_provider: str | None = None
     market_data_warnings: list[str] = field(default_factory=list)
     telegram_delivery_status: str = "disabled"
+    exclusion_counts: dict[str, int] = field(default_factory=dict)

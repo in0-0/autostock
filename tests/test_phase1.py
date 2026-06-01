@@ -55,7 +55,7 @@ from src.models import (
     RecommendationAction,
     TechnicalRecord,
 )
-from src.main import _build_portfolio_source, _send_telegram_report
+from src.main import _build_portfolio_source, _resolve_market_universe, _send_telegram_report
 from src.reporting import render_markdown_report
 from src.utils.atomic import atomic_write_json
 
@@ -610,6 +610,53 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(payload["cache_schema_version"], 1)
         self.assertEqual(payload["records"][0]["source_risk"], "package_public_source")
 
+
+    def test_real_mode_empty_config_universe_resolves_from_provider(self) -> None:
+        class StaticUniverseProvider:
+            def __init__(self, filter_config: UniverseFilter) -> None:
+                self.filter_config = filter_config
+                self.name = "static_universe"
+
+            def load(self) -> list[UniverseRecord]:
+                return apply_universe_filter(
+                    [
+                        UniverseRecord("005930", "삼성전자", "KOSPI", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                        UniverseRecord("069500", "KODEX 200", "KOSPI", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                    ],
+                    self.filter_config,
+                )
+
+        settings = {"market_data": {"universe": [], "universe_provider": {"markets": ["KOSPI"], "max_universe_size": 1}}}
+        with patch("src.main.PykrxUniverseProvider", StaticUniverseProvider), patch("src.main.FdrUniverseProvider", StaticUniverseProvider):
+            tickers, records, warnings, snapshot = _resolve_market_universe(settings, "real")
+
+        self.assertEqual(tickers, ["005930"])
+        self.assertEqual(records[0].name, "삼성전자")
+        self.assertEqual(warnings, [])
+        self.assertEqual(snapshot["count"], 1)
+
+    def test_report_shows_top_exclusion_counts_when_no_candidates(self) -> None:
+        portfolio = PortfolioState(
+            updated_at=datetime(2026, 6, 1),
+            total_krw_evaluation=1_000_000,
+            total_krw_deposit=0,
+        )
+
+        report = render_markdown_report(
+            generated_at=datetime(2026, 6, 1),
+            macro_status=MacroStatus.CAUTION,
+            macro_indicators={"kospi_above_10ma": False, "kosdaq_above_10ma": False},
+            ranked_candidates=[],
+            trade_guides=[],
+            portfolio=portfolio,
+            candidate_exclusion_counts={"missing_peg_inputs": 2, "dart_api_key_missing": 1},
+        )
+
+        self.assertIn("주요 제외 사유", report)
+        self.assertIn("missing_peg_inputs: 2개", report)
+        self.assertNotIn("추가 매수 +", report)
+        self.assertNotIn("목표 비중", report)
+
     def test_real_market_data_mode_does_not_fall_back_to_sample(self) -> None:
         providers = build_market_data_providers("real", universe=[])
         bundle = load_market_data_with_fallback(providers)
@@ -639,7 +686,9 @@ class Phase1Tests(unittest.TestCase):
 
             self.assertEqual(bundle.macro_provider, "unavailable")
             self.assertEqual(bundle.macro, load_unavailable_macro())
+            self.assertEqual(bundle.fundamentals, [])
             self.assertTrue(any(warning.startswith("macro_data_unavailable") for warning in bundle.stale_warnings))
+            self.assertFalse(any(warning.startswith("missing_full_fundamental_fields") for warning in bundle.stale_warnings))
 
     def test_daily_ohlcv_normalization_uses_calendar_week_and_month_buckets(self) -> None:
         rows = [

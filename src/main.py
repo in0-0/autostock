@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from src.collectors.dart import DartCorpCodeCache, DartFinancialProvider
 from src.collectors.google_sheets import GoogleSheetsConfig, GoogleSheetsPortfolioSource
 from src.collectors.market_data import (
     build_market_data_providers,
@@ -13,6 +14,15 @@ from src.collectors.market_data import (
     market_data_warning_messages,
 )
 from src.collectors.portfolio_source import BrokerPortfolioSource, PortfolioSource, merge_portfolio_sources
+from src.collectors.universe import (
+    CachedUniverseProvider,
+    FdrUniverseProvider,
+    PykrxUniverseProvider,
+    UniverseFilter,
+    UniverseRecord,
+    load_universe_with_fallback,
+    universe_cache_path,
+)
 from src.engines.exit import ExitEngine
 from src.engines.fundamental import FundamentalEngine
 from src.engines.macro import MacroEngine
@@ -37,7 +47,7 @@ def run(settings_path: str) -> None:
     atomic_write_json(data_dir / "portfolio_state.json", portfolio.model_dump(mode="json"))
 
     market_data_mode = str(get_nested(settings, "market_data", "mode", default="sample"))
-    market_universe = list(get_nested(settings, "market_data", "universe", default=[]))
+    market_universe, universe_records, universe_warnings, universe_snapshot = _resolve_market_universe(settings, market_data_mode)
     lookback_days = int(get_nested(settings, "market_data", "lookback_days", default=460))
     market_fixture_path = get_nested(settings, "market_data", "fixture_path", default=None)
     request_delay_seconds = float(get_nested(settings, "market_data", "request_delay_seconds", default=0.0))
@@ -54,6 +64,9 @@ def run(settings_path: str) -> None:
             cache_max_age_days=cache_max_age_days,
         )
     )
+    market_data.stale_warnings = [*universe_warnings, *market_data.stale_warnings]
+    market_data.universe_snapshot = universe_snapshot
+    _apply_financial_data(settings, market_data_mode, universe_records, market_data)
     market_warnings = market_data_warning_messages(market_data)
     macro_status, macro_indicators = MacroEngine().evaluate(market_data.macro)
 
@@ -128,6 +141,7 @@ def run(settings_path: str) -> None:
     technical_by_ticker = {item["ticker"]: item for item in technical_explain}
 
     explain_items = []
+    exclusion_counts = _count_exclusion_reasons(market_data.exclusion_reasons)
     for item in fundamental_explain:
         ticker = item["ticker"]
         ranked = ranked_by_ticker.get(ticker)
@@ -160,6 +174,7 @@ def run(settings_path: str) -> None:
                 "rationale": candidate.rationale if candidate else [],
                 "risks": risk_reasons,
                 "provider": candidate.provider if candidate else market_data.provider,
+                "source": getattr(candidate, "source", None),
                 "macro_context": {
                     "status": macro_status.value,
                     "provider": market_data.macro_provider,
@@ -167,6 +182,31 @@ def run(settings_path: str) -> None:
                 },
             }
         )
+    for ticker, reasons in market_data.exclusion_reasons.items():
+        if any(item.get("ticker") == ticker for item in explain_items):
+            continue
+        explain_items.append(
+            {
+                "ticker": ticker,
+                "name": _universe_name(universe_records, ticker),
+                "filters": {},
+                "final_rank": None,
+                "review_score": None,
+                "score_inputs": {},
+                "peg": None,
+                "strategy_type": None,
+                "exit_signal": None,
+                "rationale": [],
+                "risks": list(dict.fromkeys(reasons)),
+                "provider": market_data.provider,
+                "macro_context": {
+                    "status": macro_status.value,
+                    "provider": market_data.macro_provider,
+                    "indicators": macro_indicators,
+                },
+            }
+        )
+
     report = render_markdown_report(
         generated_at=now,
         macro_status=macro_status,
@@ -176,8 +216,34 @@ def run(settings_path: str) -> None:
         portfolio=portfolio,
         market_data_warnings=market_warnings,
         telegram_delivery_status=None,
+        candidate_exclusion_counts=exclusion_counts,
     )
     telegram_delivery_status = _send_telegram_report(report, settings)
+    for ticker, reasons in market_data.exclusion_reasons.items():
+        if any(item.get("ticker") == ticker for item in explain_items):
+            continue
+        explain_items.append(
+            {
+                "ticker": ticker,
+                "name": _universe_name(universe_records, ticker),
+                "filters": {},
+                "final_rank": None,
+                "review_score": None,
+                "score_inputs": {},
+                "peg": None,
+                "strategy_type": None,
+                "exit_signal": None,
+                "rationale": [],
+                "risks": list(dict.fromkeys(reasons)),
+                "provider": market_data.provider,
+                "macro_context": {
+                    "status": macro_status.value,
+                    "provider": market_data.macro_provider,
+                    "indicators": macro_indicators,
+                },
+            }
+        )
+
     report = render_markdown_report(
         generated_at=now,
         macro_status=macro_status,
@@ -187,6 +253,7 @@ def run(settings_path: str) -> None:
         portfolio=portfolio,
         market_data_warnings=market_warnings,
         telegram_delivery_status=telegram_delivery_status,
+        candidate_exclusion_counts=exclusion_counts,
     )
     explain_log = ExplainLog(
         generated_at=now,
@@ -202,6 +269,7 @@ def run(settings_path: str) -> None:
         macro_provider=market_data.macro_provider,
         market_data_warnings=market_warnings,
         telegram_delivery_status=telegram_delivery_status,
+        exclusion_counts=exclusion_counts,
     )
     date_key = now.strftime("%Y-%m-%d")
     atomic_write_json(data_dir / "explain_logs" / f"explain_{date_key}.json", explain_log.model_dump(mode="json"))
@@ -214,6 +282,104 @@ def run(settings_path: str) -> None:
         },
     )
     print(report)
+
+
+def _resolve_market_universe(settings: dict, market_data_mode: str) -> tuple[list[str], list[UniverseRecord], list[str], dict | None]:
+    configured = [_normalize_ticker(ticker) for ticker in get_nested(settings, "market_data", "universe", default=[])]
+    if configured or market_data_mode != "real":
+        records = [
+            UniverseRecord(
+                ticker=ticker,
+                name=ticker,
+                market="CONFIG",
+                source="settings",
+                source_risk="manual_config",
+                collected_at=datetime.now().isoformat(),
+            )
+            for ticker in configured
+        ]
+        return configured, records, [], {"source": "settings", "count": len(configured)} if configured else None
+
+    provider_settings = get_nested(settings, "market_data", "universe_provider", default={})
+    if provider_settings.get("enabled", True) is False:
+        return [], [], ["universe_empty"], {"source": "disabled", "count": 0}
+
+    markets = tuple(provider_settings.get("markets") or ["KOSPI", "KOSDAQ"])
+    max_size = provider_settings.get("max_universe_size")
+    filter_config = UniverseFilter(
+        markets=markets,
+        exclude_etf=bool(provider_settings.get("exclude_etf", True)),
+        exclude_etn=bool(provider_settings.get("exclude_etn", True)),
+        exclude_konex=bool(provider_settings.get("exclude_konex", True)),
+        max_universe_size=int(max_size) if max_size not in (None, "") else None,
+    )
+    providers = [PykrxUniverseProvider(filter_config), FdrUniverseProvider(filter_config)]
+    cache_dir = get_nested(settings, "market_data", "cache_dir", default="")
+    if cache_dir:
+        providers = [
+            CachedUniverseProvider(provider, universe_cache_path(cache_dir, provider.name, filter_config), max_age_days=7)
+            for provider in providers
+        ]
+    records, warnings = load_universe_with_fallback(providers)
+    snapshot = {
+        "source": records[0].source if records else "none",
+        "source_risk": records[0].source_risk if records else None,
+        "count": len(records),
+        "markets": list(markets),
+        "collected_at": records[0].collected_at if records else None,
+    }
+    return [record.ticker for record in records], records, warnings, snapshot
+
+
+def _apply_financial_data(settings: dict, market_data_mode: str, universe_records: list[UniverseRecord], market_data) -> None:
+    if market_data_mode != "real" or not universe_records:
+        return
+    financial_settings = get_nested(settings, "financial_data", default={})
+    provider_name = str(financial_settings.get("provider", "opendart"))
+    if provider_name != "opendart":
+        return
+    api_key = _setting_or_env(financial_settings, "dart_api_key", str(financial_settings.get("dart_api_key_env", "AUTOSTOCK_DART_API_KEY")), "")
+    mapping = {}
+    cache_dir = get_nested(settings, "market_data", "cache_dir", default="")
+    if api_key and cache_dir:
+        try:
+            corp_cache = DartCorpCodeCache(Path(cache_dir) / "opendart_corp_codes.json", api_key)
+            mapping = corp_cache.load()
+            if corp_cache.last_cache_status == "stale":
+                market_data.stale_warnings.append("stale_dart_corp_code_cache")
+        except Exception as exc:
+            market_data.stale_warnings.append(f"dart_corp_code_failed:{sanitize_error_message(exc)}")
+    provider = DartFinancialProvider(api_key=api_key, corp_code_mapping=mapping)
+    result = provider.load_for_universe(universe_records, market_metrics=market_data.market_metrics)
+    market_data.fundamentals = result.fundamentals
+    market_data.exclusion_reasons = _merge_exclusion_reasons(market_data.exclusion_reasons, result.exclusions)
+    market_data.stale_warnings.extend(result.warnings)
+
+
+def _merge_exclusion_reasons(left: dict[str, list[str]], right: dict[str, list[str]]) -> dict[str, list[str]]:
+    merged = {ticker: list(reasons) for ticker, reasons in left.items()}
+    for ticker, reasons in right.items():
+        merged[ticker] = list(dict.fromkeys([*merged.get(ticker, []), *reasons]))
+    return merged
+
+
+def _count_exclusion_reasons(exclusions: dict[str, list[str]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for reasons in exclusions.values():
+        for reason in reasons:
+            counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def _universe_name(records: list[UniverseRecord], ticker: str) -> str:
+    for record in records:
+        if record.ticker == ticker:
+            return record.name
+    return ticker
+
+
+def _normalize_ticker(ticker: object) -> str:
+    return str(ticker).strip().zfill(6)
 
 
 def _build_portfolio_source(settings: dict) -> PortfolioSource:

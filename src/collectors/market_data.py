@@ -49,6 +49,9 @@ class MarketDataBundle:
     telemetry: list[ProviderTelemetry] = field(default_factory=list)
     stale_warnings: list[str] = field(default_factory=list)
     macro_provider: str | None = None
+    market_metrics: dict[str, dict] = field(default_factory=dict)
+    exclusion_reasons: dict[str, list[str]] = field(default_factory=dict)
+    universe_snapshot: dict | None = None
 
 
 class MarketDataProvider(Protocol):
@@ -156,6 +159,7 @@ class PykrxMarketDataProvider:
         fundamentals: list[FundamentalRecord] = []
         technicals: dict[str, TechnicalRecord] = {}
         current_prices: dict[str, int] = {}
+        market_metrics: dict[str, dict] = {}
 
         for ticker in self.universe:
             price_rows = self._load_price_rows(ticker)
@@ -171,8 +175,9 @@ class PykrxMarketDataProvider:
                 weekly_volume=normalized.weekly_volume,
                 listed_weeks=normalized.listed_weeks,
             )
-            name = self._ticker_name(ticker)
-            fundamentals.append(_incomplete_fundamental(ticker, name))
+            metrics = self._load_market_metrics(ticker)
+            if metrics:
+                market_metrics[ticker] = metrics
             _sleep_between_provider_requests(self.request_delay_seconds)
 
         if not technicals:
@@ -184,8 +189,9 @@ class PykrxMarketDataProvider:
             provider=self.name,
             current_prices=current_prices,
             telemetry=[ProviderTelemetry(provider=self.name, success=True)],
-            stale_warnings=["missing_full_fundamental_fields:pykrx", "macro_data_unavailable:pykrx"],
+            stale_warnings=["macro_data_unavailable:pykrx"],
             macro_provider="unavailable",
+            market_metrics=market_metrics,
         )
 
     def _load_price_rows(self, ticker: str) -> list[DailyPriceRow]:
@@ -204,6 +210,20 @@ class PykrxMarketDataProvider:
         except ImportError:
             return ticker
         return stock.get_market_ticker_name(ticker) or ticker
+
+    def _load_market_metrics(self, ticker: str) -> dict:
+        try:
+            from pykrx import stock
+        except ImportError:
+            return {}
+        end = date.today()
+        start = end - timedelta(days=30)
+        try:
+            frame = stock.get_market_fundamental_by_date(_yyyymmdd(start), _yyyymmdd(end), ticker)
+        except Exception:
+            return {}
+        per_values = [value for value in _series_values(frame, ["PER", "per"]) if value > 0]
+        return {"per": per_values[-1], "source": self.name} if per_values else {}
 
 
 class FinanceDataReaderMarketDataProvider:
@@ -241,7 +261,6 @@ class FinanceDataReaderMarketDataProvider:
                 weekly_volume=normalized.weekly_volume,
                 listed_weeks=normalized.listed_weeks,
             )
-            fundamentals.append(_incomplete_fundamental(ticker, ticker))
             _sleep_between_provider_requests(self.request_delay_seconds)
 
         if not technicals:
@@ -253,7 +272,7 @@ class FinanceDataReaderMarketDataProvider:
             provider=self.name,
             current_prices=current_prices,
             telemetry=[ProviderTelemetry(provider=self.name, success=True)],
-            stale_warnings=["missing_full_fundamental_fields:fdr", "macro_data_unavailable:fdr"],
+            stale_warnings=["macro_data_unavailable:fdr"],
             macro_provider="unavailable",
         )
 
@@ -511,6 +530,9 @@ def _bundle_to_payload(bundle: MarketDataBundle, *, written_at: datetime | None 
         "telemetry": [asdict(entry) for entry in bundle.telemetry],
         "stale_warnings": bundle.stale_warnings,
         "macro_provider": bundle.macro_provider,
+        "market_metrics": bundle.market_metrics,
+        "exclusion_reasons": bundle.exclusion_reasons,
+        "universe_snapshot": bundle.universe_snapshot,
     }
 
 
@@ -531,6 +553,9 @@ def _bundle_from_payload(payload: dict) -> MarketDataBundle:
         telemetry=[ProviderTelemetry(**entry) for entry in payload.get("telemetry", [])],
         stale_warnings=list(payload.get("stale_warnings", [])),
         macro_provider=payload.get("macro_provider"),
+        market_metrics={str(ticker): dict(values) for ticker, values in payload.get("market_metrics", {}).items()},
+        exclusion_reasons={str(ticker): list(reasons) for ticker, reasons in payload.get("exclusion_reasons", {}).items()},
+        universe_snapshot=payload.get("universe_snapshot"),
     )
 
 

@@ -16,8 +16,10 @@ def render_markdown_report(
     portfolio: PortfolioState,
     market_data_warnings: list[str] | None = None,
     telegram_delivery_status: str | None = "disabled",
+    candidate_exclusion_counts: dict[str, int] | None = None,
 ) -> str:
     market_data_warnings = market_data_warnings or []
+    candidate_exclusion_counts = candidate_exclusion_counts or {}
     lines: list[str] = []
     lines.append("📌 포트폴리오 점검 요약")
     lines.append("--------------------------------")
@@ -42,6 +44,10 @@ def render_markdown_report(
                 lines.append(f"   - 데이터: {candidate.provider}")
     else:
         lines.append("- 조건 만족 종목이 최소 기준 미만이거나 매수 차단 상태입니다.")
+        if candidate_exclusion_counts:
+            lines.append("- 주요 제외 사유:")
+            for reason, count in list(candidate_exclusion_counts.items())[:5]:
+                lines.append(f"   - {reason}: {count}개")
     lines.append("")
     lines.append("🚨 시스템 리스크 경고 현황")
     lines.append("--------------------------------")
