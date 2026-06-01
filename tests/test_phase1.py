@@ -28,6 +28,14 @@ from src.collectors.market_data import (
     _daily_price_rows,
     _normalize_daily_ohlcv,
 )
+from src.collectors.universe import (
+    CachedUniverseProvider,
+    UniverseFilter,
+    UniverseRecord,
+    apply_universe_filter,
+    load_universe_with_fallback,
+    universe_cache_path,
+)
 from src.collectors.portfolio_source import (
     PortfolioSourcePosition,
     PortfolioSourceResult,
@@ -463,6 +471,59 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(bundle.macro_provider, "unavailable")
         self.assertEqual(bundle.macro, load_unavailable_macro())
         self.assertIn("macro_data_unavailable:fixture_realistic", bundle.stale_warnings)
+
+
+    def test_universe_filter_excludes_etf_etn_and_limits_deterministically(self) -> None:
+        records = [
+            UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("069500", "KODEX 200", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("500001", "신한 ETN", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("123456", "코넥스기업", "KONEX", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("035420", "NAVER", "KOSDAQ", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+        ]
+
+        filtered = apply_universe_filter(records, UniverseFilter(max_universe_size=1))
+
+        self.assertEqual([record.ticker for record in filtered], ["035420"])
+
+    def test_universe_fallback_records_empty_and_failed_providers(self) -> None:
+        class EmptyUniverseProvider:
+            name = "empty"
+
+            def load(self) -> list[UniverseRecord]:
+                return []
+
+        class FailingUniverseProvider:
+            name = "failing"
+
+            def load(self) -> list[UniverseRecord]:
+                raise RuntimeError("offline")
+
+        records, warnings = load_universe_with_fallback([FailingUniverseProvider(), EmptyUniverseProvider()])
+
+        self.assertEqual(records, [])
+        self.assertIn("universe_provider_failed:failing:offline", warnings)
+        self.assertIn("universe_provider_empty:empty", warnings)
+        self.assertIn("universe_empty", warnings)
+
+    def test_cached_universe_provider_uses_fresh_cache_and_records_schema(self) -> None:
+        class StaticUniverseProvider:
+            name = "static"
+
+            def load(self) -> list[UniverseRecord]:
+                return [UniverseRecord("005930", "삼성전자", "KOSPI", self.name, "package_public_source", "2026-06-01T00:00:00")]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = universe_cache_path(tmp, "static", UniverseFilter())
+            provider = CachedUniverseProvider(StaticUniverseProvider(), cache_path, max_age_days=7)
+            first = provider.load()
+            second = provider.load()
+            payload = json.loads(cache_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(first, second)
+        self.assertEqual(provider.last_cache_status, "hit")
+        self.assertEqual(payload["cache_schema_version"], 1)
+        self.assertEqual(payload["records"][0]["source_risk"], "package_public_source")
 
     def test_real_market_data_mode_does_not_fall_back_to_sample(self) -> None:
         providers = build_market_data_providers("real", universe=[])
