@@ -340,7 +340,7 @@ def _apply_financial_data(settings: dict, market_data_mode: str, universe_record
         return
     api_key = _setting_or_env(financial_settings, "dart_api_key", str(financial_settings.get("dart_api_key_env", "AUTOSTOCK_DART_API_KEY")), "")
     mapping = {}
-    cache_dir = get_nested(settings, "market_data", "cache_dir", default="")
+    cache_dir = get_nested(settings, "market_data", "cache_dir", default="") or str(Path(get_nested(settings, "app", "data_dir", default="data")) / "market_cache")
     if api_key and cache_dir:
         try:
             corp_cache = DartCorpCodeCache(Path(cache_dir) / "opendart_corp_codes.json", api_key)

@@ -55,7 +55,7 @@ from src.models import (
     RecommendationAction,
     TechnicalRecord,
 )
-from src.main import _build_portfolio_source, _resolve_market_universe, _send_telegram_report
+from src.main import _apply_financial_data, _build_portfolio_source, _resolve_market_universe, _send_telegram_report
 from src.reporting import render_markdown_report
 from src.utils.atomic import atomic_write_json
 
@@ -541,6 +541,43 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(result.fundamentals, [])
         self.assertEqual(result.exclusions["005930"], ["dart_api_key_missing"])
         self.assertIn("dart_api_key_missing", result.warnings)
+
+
+    def test_apply_financial_data_uses_default_cache_dir_for_corp_codes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp) / "data"
+            settings = {"app": {"data_dir": str(data_dir)}, "financial_data": {"provider": "opendart", "dart_api_key": "key"}}
+            cache_dir = data_dir / "market_cache"
+            cache_dir.mkdir(parents=True)
+            atomic_write_json(
+                cache_dir / "opendart_corp_codes.json",
+                {
+                    "cache_schema_version": 1,
+                    "cache_written_at": datetime.now().isoformat(),
+                    "source": "opendart_corp_code",
+                    "source_risk": "official_api",
+                    "mapping": {"005930": "00126380"},
+                },
+            )
+            bundle = MarketDataBundle(
+                fundamentals=[],
+                technicals={},
+                macro=load_unavailable_macro(),
+                provider="pykrx",
+                current_prices={},
+                market_metrics={"005930": {"per": 9.0}},
+            )
+            universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
+
+            class FakeResponse:
+                def json(self) -> dict:
+                    return {"status": "000", "list": _dart_rows()}
+
+            with patch("src.collectors.dart.requests.get", return_value=FakeResponse()):
+                _apply_financial_data(settings, "real", universe, bundle)
+
+        self.assertEqual(len(bundle.fundamentals), 1)
+        self.assertEqual(bundle.fundamentals[0].source, "opendart")
 
     def test_dart_financial_provider_requires_peg_inputs(self) -> None:
         universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
