@@ -113,6 +113,11 @@ class FundamentalRecord(Serializable):
     current_net_income: int
     peg: float
     industry: str = "DEFAULT"
+    period: str | None = None
+    source: str | None = None
+    source_risk: str | None = None
+    collected_at: str | None = None
+    field_provenance: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

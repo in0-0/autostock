@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import zipfile
 import contextlib
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+from src.collectors.dart import DartFinancialProvider, parse_corp_code_zip, normalize_dart_fundamental
 from src.collectors.google_sheets import READONLY_SCOPE, GoogleSheetsConfig, GoogleSheetsPortfolioSource, parse_portfolio_rows
 from src.collectors.market_data import (
     CachedMarketDataProvider,
@@ -472,6 +474,89 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(bundle.macro, load_unavailable_macro())
         self.assertIn("macro_data_unavailable:fixture_realistic", bundle.stale_warnings)
 
+
+
+    def test_dart_corp_code_zip_maps_stock_code_to_corp_code(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            zip_path = Path(tmp) / "corp.zip"
+            xml = """
+            <result>
+              <list><corp_code>00126380</corp_code><corp_name>삼성전자</corp_name><stock_code>005930</stock_code></list>
+              <list><corp_code>empty</corp_code><corp_name>비상장</corp_name><stock_code></stock_code></list>
+            </result>
+            """.encode("utf-8")
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                archive.writestr("CORPCODE.xml", xml)
+
+            mapping = parse_corp_code_zip(zip_path.read_bytes())
+
+        self.assertEqual(mapping["005930"], "00126380")
+        self.assertNotIn("", mapping)
+
+    def test_dart_financial_normalization_produces_fundamental_with_provenance(self) -> None:
+        rows = _dart_rows()
+
+        record, exclusions = normalize_dart_fundamental(
+            ticker="005930",
+            name="삼성전자",
+            rows=rows,
+            per=9.0,
+            collected_at="2026-06-01T00:00:00",
+            period="2025",
+        )
+
+        self.assertEqual(exclusions, [])
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record.source, "opendart")
+        self.assertEqual(record.source_risk, "official_api")
+        self.assertEqual(record.period, "2025")
+        self.assertAlmostEqual(record.operating_margin, 0.10)
+        self.assertAlmostEqual(record.debt_ratio, 0.5)
+        self.assertAlmostEqual(record.net_income_growth, 0.20)
+        self.assertAlmostEqual(record.peg, 0.36)
+        self.assertIn("per", record.field_provenance)
+
+    def test_dart_financial_normalization_excludes_missing_required_inputs(self) -> None:
+        rows = [row for row in _dart_rows() if row["account_nm"] != "영업이익"]
+
+        record, exclusions = normalize_dart_fundamental(
+            ticker="005930",
+            name="삼성전자",
+            rows=rows,
+            per=9.0,
+            collected_at="2026-06-01T00:00:00",
+            period="2025",
+        )
+
+        self.assertIsNone(record)
+        self.assertIn("missing_operating_profit", exclusions)
+        self.assertIn("missing_operating_income_growth_inputs", exclusions)
+
+    def test_dart_financial_provider_missing_api_key_is_warning_not_crash(self) -> None:
+        universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
+
+        result = DartFinancialProvider(api_key="").load_for_universe(universe)
+
+        self.assertEqual(result.fundamentals, [])
+        self.assertEqual(result.exclusions["005930"], ["dart_api_key_missing"])
+        self.assertIn("dart_api_key_missing", result.warnings)
+
+    def test_dart_financial_provider_requires_peg_inputs(self) -> None:
+        universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
+
+        class FakeResponse:
+            def json(self) -> dict:
+                return {"status": "000", "list": _dart_rows()}
+
+        result = DartFinancialProvider(
+            api_key="key",
+            corp_code_mapping={"005930": "00126380"},
+            api_get=lambda *args, **kwargs: FakeResponse(),
+        ).load_for_universe(universe, market_metrics={})
+
+        self.assertEqual(result.fundamentals, [])
+        self.assertIn("missing_peg_inputs", result.exclusions["005930"])
 
     def test_universe_filter_excludes_etf_etn_and_limits_deterministically(self) -> None:
         records = [
@@ -1238,3 +1323,13 @@ class SensitiveFailingProvider:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _dart_rows() -> list[dict[str, str]]:
+    return [
+        {"account_nm": "매출액", "thstrm_amount": "100,000", "frmtrm_amount": "90,000", "bfefrmtrm_amount": "80,000"},
+        {"account_nm": "영업이익", "thstrm_amount": "10,000", "frmtrm_amount": "8,000", "bfefrmtrm_amount": "7,000"},
+        {"account_nm": "당기순이익", "thstrm_amount": "12,000", "frmtrm_amount": "10,000", "bfefrmtrm_amount": "8,000"},
+        {"account_nm": "부채총계", "thstrm_amount": "50,000", "frmtrm_amount": "48,000", "bfefrmtrm_amount": "45,000"},
+        {"account_nm": "자본총계", "thstrm_amount": "100,000", "frmtrm_amount": "90,000", "bfefrmtrm_amount": "80,000"},
+    ]
