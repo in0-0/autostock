@@ -35,6 +35,9 @@ market_data:
     price_max_age_days: 3
     technical_weekly_max_age_days: 10
     fundamental_max_age_days: 120
+  cross_check:
+    enabled: false
+    max_disagreement_ratio: 0.03
 
 source_risk_policy:
   allowed:

@@ -30,7 +30,7 @@ def render_markdown_report(
     lines.append(f"{macro_status.value} | KOSPI 10MA: {macro_indicators['kospi_above_10ma']} | KOSDAQ 10MA: {macro_indicators['kosdaq_above_10ma']}")
     lines.append(f"미국 기준금리: {macro_indicators.get('us_rate')} | 장단기 금리차: {macro_indicators.get('yield_curve_10y2y')}")
     lines.append("")
-    lines.append("🏆 금주 우량 성장주 추천 TOP")
+    lines.append("🏆 금주 우량 성장주 후보 TOP")
     lines.append("--------------------------------")
     if ranked_candidates:
         for candidate in ranked_candidates:
@@ -43,7 +43,7 @@ def render_markdown_report(
             if candidate.provider:
                 lines.append(f"   - 데이터: {candidate.provider}")
     else:
-        lines.append("- 조건 만족 종목이 최소 기준 미만이거나 매수 차단 상태입니다.")
+        lines.append("- 조건 만족 종목이 최소 기준 미만이거나 후보 검토 보류 상태입니다.")
         if candidate_exclusion_counts:
             lines.append("- 주요 제외 사유:")
             for reason, count in list(candidate_exclusion_counts.items())[:5]:
@@ -71,7 +71,7 @@ def render_markdown_report(
         for candidate in ranked_candidates:
             lines.append(f"- {candidate.name} ({candidate.ticker}): 후보 검토 대상 [{candidate.strategy_type}]")
     else:
-        lines.append("- 검토 가능한 신규 매수 후보가 없습니다.")
+        lines.append("- 검토 가능한 신규 후보가 없습니다.")
     lines.append("")
     lines.append(f"생성 시각: {generated_at.isoformat()}")
     return "\n".join(lines)

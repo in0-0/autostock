@@ -325,6 +325,34 @@ def load_market_data_with_fallback(providers: list[MarketDataProvider]) -> Marke
     )
 
 
+def apply_price_source_cross_check(
+    bundle: MarketDataBundle,
+    cross_check_bundle: MarketDataBundle,
+    *,
+    max_disagreement_ratio: float = 0.03,
+) -> None:
+    """Record exclusion reasons when two price sources materially disagree.
+
+    This is intentionally opt-in for v0.2 because it can double live provider
+    traffic. The function mutates the primary bundle so downstream quality gates
+    and report exclusion counts see the same stable reason taxonomy.
+    """
+    if cross_check_bundle.provider in {"", "none"}:
+        return
+    for ticker, primary_price in bundle.current_prices.items():
+        cross_price = cross_check_bundle.current_prices.get(ticker)
+        if primary_price <= 0 or not cross_price or cross_price <= 0:
+            continue
+        disagreement = abs(primary_price - cross_price) / max(primary_price, cross_price)
+        if disagreement > max_disagreement_ratio:
+            bundle.exclusion_reasons.setdefault(ticker, []).append("source_disagreement_price")
+    bundle.telemetry.extend(
+        entry
+        for entry in cross_check_bundle.telemetry
+        if not any(existing.provider == entry.provider and existing.success == entry.success for existing in bundle.telemetry)
+    )
+
+
 def build_market_data_providers(
     mode: str,
     universe: list[str] | None = None,
@@ -379,6 +407,7 @@ def candidate_completeness_warnings(
     latest_trade_date: str | None = None,
     price_max_age_days: int | None = None,
     allowed_source_risks: set[str] | None = None,
+    source_risks: list[str] | None = None,
 ) -> list[str]:
     warnings: list[str] = []
     if current_price is None or current_price <= 0:
@@ -406,8 +435,10 @@ def candidate_completeness_warnings(
         warnings.append("missing_full_fundamental_fields")
     if not provider or provider == "none":
         warnings.append("missing_provider_provenance")
-    if allowed_source_risks is not None and fundamental.source_risk and fundamental.source_risk not in allowed_source_risks:
-        warnings.append("source_risk_blocked")
+    if allowed_source_risks is not None:
+        risks_to_check = list(dict.fromkeys([*(source_risks or []), *([fundamental.source_risk] if fundamental.source_risk else [])]))
+        if any(source_risk not in allowed_source_risks for source_risk in risks_to_check):
+            warnings.append("source_risk_blocked")
     for provider_warning in provider_warnings or []:
         if provider_warning.startswith(("stale_", "missing_full_fundamental_fields")):
             warnings.append(f"provider_warning:{provider_warning}")

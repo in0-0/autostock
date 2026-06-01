@@ -8,6 +8,7 @@ from pathlib import Path
 from src.collectors.dart import DartCorpCodeCache, DartFinancialCache, DartFinancialProvider
 from src.collectors.google_sheets import GoogleSheetsConfig, GoogleSheetsPortfolioSource
 from src.collectors.market_data import (
+    apply_price_source_cross_check,
     build_market_data_providers,
     candidate_completeness_warnings,
     load_market_data_with_fallback,
@@ -66,6 +67,16 @@ def run(settings_path: str) -> None:
     )
     market_data.stale_warnings = [*universe_warnings, *market_data.stale_warnings]
     market_data.universe_snapshot = universe_snapshot
+    _apply_price_cross_check(
+        settings,
+        market_data_mode,
+        market_universe,
+        lookback_days,
+        request_delay_seconds,
+        market_cache_dir,
+        cache_max_age_days,
+        market_data,
+    )
     _apply_financial_data(settings, market_data_mode, universe_records, market_data)
     market_warnings = market_data_warning_messages(market_data)
     macro_status, macro_indicators = MacroEngine().evaluate(market_data.macro)
@@ -97,6 +108,7 @@ def run(settings_path: str) -> None:
             latest_trade_date=market_data.latest_trade_dates.get(fundamental.ticker),
             price_max_age_days=price_max_age_days,
             allowed_source_risks=allowed_source_risks,
+            source_risks=_candidate_source_risks(fundamental, market_data, universe_records),
         )
         if completeness_warnings:
             incomplete_candidate_reasons[fundamental.ticker] = completeness_warnings
@@ -150,8 +162,9 @@ def run(settings_path: str) -> None:
     fundamentals_by_ticker = {fundamental.ticker: fundamental for fundamental in fundamentals}
     technical_by_ticker = {item["ticker"]: item for item in technical_explain}
 
+    all_exclusion_reasons = _merge_exclusion_reasons(market_data.exclusion_reasons, incomplete_candidate_reasons)
     explain_items = []
-    exclusion_counts = _count_exclusion_reasons(market_data.exclusion_reasons)
+    exclusion_counts = _count_exclusion_reasons(all_exclusion_reasons)
     for item in fundamental_explain:
         ticker = item["ticker"]
         ranked = ranked_by_ticker.get(ticker)
@@ -192,7 +205,7 @@ def run(settings_path: str) -> None:
                 },
             }
         )
-    for ticker, reasons in market_data.exclusion_reasons.items():
+    for ticker, reasons in all_exclusion_reasons.items():
         if any(item.get("ticker") == ticker for item in explain_items):
             continue
         explain_items.append(
@@ -345,6 +358,44 @@ def _apply_financial_data(settings: dict, market_data_mode: str, universe_record
     market_data.stale_warnings.extend(result.warnings)
 
 
+def _apply_price_cross_check(
+    settings: dict,
+    market_data_mode: str,
+    market_universe: list[str],
+    lookback_days: int,
+    request_delay_seconds: float,
+    market_cache_dir: str | None,
+    cache_max_age_days: int,
+    market_data,
+) -> None:
+    if market_data_mode != "real" or market_data.provider != "pykrx":
+        return
+    cross_check_settings = get_nested(settings, "market_data", "cross_check", default={})
+    if not bool(cross_check_settings.get("enabled", False)):
+        return
+    providers = build_market_data_providers(
+        "real",
+        market_universe,
+        lookback_days,
+        request_delay_seconds=request_delay_seconds,
+        cache_dir=market_cache_dir,
+        cache_max_age_days=cache_max_age_days,
+    )
+    fdr_provider = next((provider for provider in providers if getattr(provider, "name", "") == "fdr"), None)
+    if fdr_provider is None:
+        return
+    try:
+        cross_check_bundle = fdr_provider.load()
+    except Exception as exc:
+        market_data.stale_warnings.append(f"price_cross_check_failed:fdr:{sanitize_error_message(exc)}")
+        return
+    apply_price_source_cross_check(
+        market_data,
+        cross_check_bundle,
+        max_disagreement_ratio=float(cross_check_settings.get("max_disagreement_ratio", 0.03)),
+    )
+
+
 def _merge_exclusion_reasons(left: dict[str, list[str]], right: dict[str, list[str]]) -> dict[str, list[str]]:
     merged = {ticker: list(reasons) for ticker, reasons in left.items()}
     for ticker, reasons in right.items():
@@ -375,6 +426,17 @@ def _candidate_data_provenance(fundamental: object, market_data, universe_record
     return _fundamental_data_provenance(fundamental, market_data, universe_records)
 
 
+def _candidate_source_risks(fundamental: object, market_data, universe_records: list[UniverseRecord]) -> list[str]:
+    ticker = str(getattr(fundamental, "ticker", ""))
+    universe_record = _universe_record_for_ticker(universe_records, ticker) if ticker else None
+    risks = [
+        getattr(universe_record, "source_risk", None),
+        _price_source_risk(market_data.provider),
+        getattr(fundamental, "source_risk", None),
+    ]
+    return [risk for risk in dict.fromkeys(risks) if risk]
+
+
 def _fundamental_data_provenance(fundamental: object, market_data, universe_records: list[UniverseRecord]) -> dict:
     ticker = str(getattr(fundamental, "ticker", ""))
     universe_record = _universe_record_for_ticker(universe_records, ticker) if ticker else None
@@ -389,6 +451,7 @@ def _fundamental_data_provenance(fundamental: object, market_data, universe_reco
     return {
         "universe": universe_record.to_payload() if universe_record else market_data.universe_snapshot,
         "price_source": market_data.provider,
+        "price_source_risk": _price_source_risk(market_data.provider),
         "price_latest_trade_date": market_data.latest_trade_dates.get(ticker) if ticker else None,
         "market_metrics": market_data.market_metrics.get(ticker, {}) if ticker else {},
         "financial_source": getattr(fundamental, "source", None),
@@ -405,6 +468,7 @@ def _exclusion_data_provenance(ticker: str, market_data, universe_records: list[
     return {
         "universe": universe_record.to_payload() if universe_record else market_data.universe_snapshot,
         "price_source": market_data.provider,
+        "price_source_risk": _price_source_risk(market_data.provider),
         "price_latest_trade_date": market_data.latest_trade_dates.get(ticker),
         "market_metrics": market_data.market_metrics.get(ticker, {}),
         "source_risks": [universe_record.source_risk] if universe_record and universe_record.source_risk else [],
@@ -415,6 +479,16 @@ def _universe_record_for_ticker(records: list[UniverseRecord], ticker: str) -> U
     for record in records:
         if record.ticker == ticker:
             return record
+    return None
+
+
+def _price_source_risk(provider: str | None) -> str | None:
+    if provider in {"pykrx", "fdr"}:
+        return "package_public_source"
+    if provider in {"sample", "fixture", "fixture_realistic"}:
+        return "manual_config"
+    if provider == "opendart":
+        return "official_api"
     return None
 
 
