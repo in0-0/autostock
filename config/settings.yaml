@@ -36,6 +36,13 @@ market_data:
     technical_weekly_max_age_days: 10
     fundamental_max_age_days: 120
 
+source_risk_policy:
+  allowed:
+    - official_api
+    - package_public_source
+    - manual_config
+  allow_crawler_snapshot: false
+
 financial_data:
   provider: opendart
   dart_api_key: ""

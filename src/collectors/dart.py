@@ -88,6 +88,63 @@ class DartCorpCodeCache:
             return None
 
 
+class DartFinancialCache:
+    def __init__(self, cache_dir: str | Path, max_age_days: int = 120, stale_grace_days: int = 180) -> None:
+        self.cache_dir = Path(cache_dir).expanduser()
+        self.max_age_days = max_age_days
+        self.stale_grace_days = stale_grace_days
+        self.last_cache_status = "miss"
+
+    def load_or_fetch(self, *, corp_code: str, bsns_year: str, reprt_code: str, fetcher: Callable[[], list[dict]]) -> list[dict]:
+        cache_path = self._cache_path(corp_code=corp_code, bsns_year=bsns_year, reprt_code=reprt_code)
+        cached = self._read(cache_path, self.max_age_days)
+        if cached is not None:
+            self.last_cache_status = "hit"
+            return cached
+        try:
+            rows = fetcher()
+        except Exception:
+            stale = self._read(cache_path, self.stale_grace_days)
+            if stale is not None:
+                self.last_cache_status = "stale"
+                return stale
+            raise
+        self.last_cache_status = "refreshed"
+        atomic_write_json(
+            cache_path,
+            {
+                "cache_schema_version": DART_FINANCIAL_CACHE_SCHEMA_VERSION,
+                "cache_written_at": datetime.now().isoformat(),
+                "source": "opendart_financial_statement",
+                "source_risk": SOURCE_RISK_OFFICIAL_API,
+                "corp_code": corp_code,
+                "bsns_year": bsns_year,
+                "reprt_code": reprt_code,
+                "fs_div": "CFS",
+                "rows": rows,
+            },
+        )
+        return rows
+
+    def _cache_path(self, *, corp_code: str, bsns_year: str, reprt_code: str) -> Path:
+        return self.cache_dir / f"opendart_financial_{corp_code}_{bsns_year}_{reprt_code}_CFS.json"
+
+    def _read(self, cache_path: Path, max_age_days: int) -> list[dict] | None:
+        if max_age_days < 0 or not cache_path.exists():
+            return None
+        try:
+            payload = json.loads(cache_path.read_text(encoding="utf-8"))
+            if payload.get("cache_schema_version") != DART_FINANCIAL_CACHE_SCHEMA_VERSION:
+                return None
+            written_at = datetime.fromisoformat(str(payload["cache_written_at"]))
+            if datetime.now() - written_at > timedelta(days=max_age_days):
+                return None
+            rows = payload.get("rows", [])
+            return [dict(row) for row in rows] if isinstance(rows, list) else None
+        except Exception:
+            return None
+
+
 class DartFinancialProvider:
     name = "opendart"
 
@@ -98,12 +155,14 @@ class DartFinancialProvider:
         api_get: Callable[..., object] | None = None,
         bsns_year: str | None = None,
         reprt_code: str = "11011",
+        financial_cache: DartFinancialCache | None = None,
     ) -> None:
         self.api_key = api_key
         self.corp_code_mapping = {str(k).zfill(6): str(v) for k, v in (corp_code_mapping or {}).items()}
         self.api_get = api_get or requests.get
         self.bsns_year = bsns_year or str(datetime.now().year - 1)
         self.reprt_code = reprt_code
+        self.financial_cache = financial_cache
 
     def load_for_universe(
         self,
@@ -124,7 +183,18 @@ class DartFinancialProvider:
                 result.exclusions.setdefault(record.ticker, []).append("missing_dart_corp_code")
                 continue
             try:
-                rows = self._fetch_financial_rows(corp_code)
+                rows = (
+                    self.financial_cache.load_or_fetch(
+                        corp_code=corp_code,
+                        bsns_year=self.bsns_year,
+                        reprt_code=self.reprt_code,
+                        fetcher=lambda corp_code=corp_code: self._fetch_financial_rows(corp_code),
+                    )
+                    if self.financial_cache
+                    else self._fetch_financial_rows(corp_code)
+                )
+                if self.financial_cache and self.financial_cache.last_cache_status == "stale":
+                    result.warnings.append("stale_financial_statement_cache")
                 normalized, exclusions = normalize_dart_fundamental(
                     ticker=record.ticker,
                     name=record.name,

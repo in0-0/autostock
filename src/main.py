@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from src.collectors.dart import DartCorpCodeCache, DartFinancialProvider
+from src.collectors.dart import DartCorpCodeCache, DartFinancialCache, DartFinancialProvider
 from src.collectors.google_sheets import GoogleSheetsConfig, GoogleSheetsPortfolioSource
 from src.collectors.market_data import (
     build_market_data_providers,
@@ -70,6 +70,11 @@ def run(settings_path: str) -> None:
     market_warnings = market_data_warning_messages(market_data)
     macro_status, macro_indicators = MacroEngine().evaluate(market_data.macro)
 
+    freshness_settings = get_nested(settings, "market_data", "freshness", default={})
+    price_max_age_days = int(freshness_settings.get("price_max_age_days", 3))
+    source_risk_policy = get_nested(settings, "source_risk_policy", default={})
+    allowed_source_risks = set(source_risk_policy.get("allowed", ["official_api", "package_public_source", "manual_config"]))
+
     fundamentals, fundamental_explain = FundamentalEngine(
         get_nested(settings, "strategy", "fundamental_filter", default={})
     ).evaluate(market_data.fundamentals)
@@ -89,6 +94,9 @@ def run(settings_path: str) -> None:
             current_price,
             provider=market_data.provider,
             provider_warnings=market_warnings,
+            latest_trade_date=market_data.latest_trade_dates.get(fundamental.ticker),
+            price_max_age_days=price_max_age_days,
+            allowed_source_risks=allowed_source_risks,
         )
         if completeness_warnings:
             incomplete_candidate_reasons[fundamental.ticker] = completeness_warnings
@@ -100,6 +108,7 @@ def run(settings_path: str) -> None:
             strategy_type=item["strategy_type"],
             current_price=current_price,
             provider=market_data.provider,
+            data_provenance=_candidate_data_provenance(fundamental, market_data, universe_records),
             rationale=[
                 "financial_cutoff_passed",
                 item["strategy_type"],
@@ -138,6 +147,7 @@ def run(settings_path: str) -> None:
 
     ranked_by_ticker = {candidate.ticker: candidate for candidate in ranked_candidates}
     candidate_by_ticker = {candidate.ticker: candidate for candidate in candidates}
+    fundamentals_by_ticker = {fundamental.ticker: fundamental for fundamental in fundamentals}
     technical_by_ticker = {item["ticker"]: item for item in technical_explain}
 
     explain_items = []
@@ -174,7 +184,7 @@ def run(settings_path: str) -> None:
                 "rationale": candidate.rationale if candidate else [],
                 "risks": risk_reasons,
                 "provider": candidate.provider if candidate else market_data.provider,
-                "source": getattr(candidate, "source", None),
+                "data_provenance": candidate.data_provenance if candidate else _fundamental_data_provenance(fundamentals_by_ticker.get(ticker), market_data, universe_records),
                 "macro_context": {
                     "status": macro_status.value,
                     "provider": market_data.macro_provider,
@@ -199,6 +209,7 @@ def run(settings_path: str) -> None:
                 "rationale": [],
                 "risks": list(dict.fromkeys(reasons)),
                 "provider": market_data.provider,
+                "data_provenance": _exclusion_data_provenance(ticker, market_data, universe_records),
                 "macro_context": {
                     "status": macro_status.value,
                     "provider": market_data.macro_provider,
@@ -219,30 +230,6 @@ def run(settings_path: str) -> None:
         candidate_exclusion_counts=exclusion_counts,
     )
     telegram_delivery_status = _send_telegram_report(report, settings)
-    for ticker, reasons in market_data.exclusion_reasons.items():
-        if any(item.get("ticker") == ticker for item in explain_items):
-            continue
-        explain_items.append(
-            {
-                "ticker": ticker,
-                "name": _universe_name(universe_records, ticker),
-                "filters": {},
-                "final_rank": None,
-                "review_score": None,
-                "score_inputs": {},
-                "peg": None,
-                "strategy_type": None,
-                "exit_signal": None,
-                "rationale": [],
-                "risks": list(dict.fromkeys(reasons)),
-                "provider": market_data.provider,
-                "macro_context": {
-                    "status": macro_status.value,
-                    "provider": market_data.macro_provider,
-                    "indicators": macro_indicators,
-                },
-            }
-        )
 
     report = render_markdown_report(
         generated_at=now,
@@ -270,6 +257,7 @@ def run(settings_path: str) -> None:
         market_data_warnings=market_warnings,
         telegram_delivery_status=telegram_delivery_status,
         exclusion_counts=exclusion_counts,
+        universe_snapshot=market_data.universe_snapshot,
     )
     date_key = now.strftime("%Y-%m-%d")
     atomic_write_json(data_dir / "explain_logs" / f"explain_{date_key}.json", explain_log.model_dump(mode="json"))
@@ -349,7 +337,8 @@ def _apply_financial_data(settings: dict, market_data_mode: str, universe_record
                 market_data.stale_warnings.append("stale_dart_corp_code_cache")
         except Exception as exc:
             market_data.stale_warnings.append(f"dart_corp_code_failed:{sanitize_error_message(exc)}")
-    provider = DartFinancialProvider(api_key=api_key, corp_code_mapping=mapping)
+    financial_cache = DartFinancialCache(cache_dir) if api_key and cache_dir else None
+    provider = DartFinancialProvider(api_key=api_key, corp_code_mapping=mapping, financial_cache=financial_cache)
     result = provider.load_for_universe(universe_records, market_metrics=market_data.market_metrics)
     market_data.fundamentals = result.fundamentals
     market_data.exclusion_reasons = _merge_exclusion_reasons(market_data.exclusion_reasons, result.exclusions)
@@ -380,6 +369,53 @@ def _universe_name(records: list[UniverseRecord], ticker: str) -> str:
 
 def _normalize_ticker(ticker: object) -> str:
     return str(ticker).strip().zfill(6)
+
+
+def _candidate_data_provenance(fundamental: object, market_data, universe_records: list[UniverseRecord]) -> dict:
+    return _fundamental_data_provenance(fundamental, market_data, universe_records)
+
+
+def _fundamental_data_provenance(fundamental: object, market_data, universe_records: list[UniverseRecord]) -> dict:
+    ticker = str(getattr(fundamental, "ticker", ""))
+    universe_record = _universe_record_for_ticker(universe_records, ticker) if ticker else None
+    source_risks = [
+        risk
+        for risk in [
+            getattr(universe_record, "source_risk", None),
+            getattr(fundamental, "source_risk", None),
+        ]
+        if risk
+    ]
+    return {
+        "universe": universe_record.to_payload() if universe_record else market_data.universe_snapshot,
+        "price_source": market_data.provider,
+        "price_latest_trade_date": market_data.latest_trade_dates.get(ticker) if ticker else None,
+        "market_metrics": market_data.market_metrics.get(ticker, {}) if ticker else {},
+        "financial_source": getattr(fundamental, "source", None),
+        "financial_source_risk": getattr(fundamental, "source_risk", None),
+        "source_risks": list(dict.fromkeys(source_risks)),
+        "financial_period": getattr(fundamental, "period", None),
+        "financial_collected_at": getattr(fundamental, "collected_at", None),
+        "field_provenance": getattr(fundamental, "field_provenance", {}),
+    }
+
+
+def _exclusion_data_provenance(ticker: str, market_data, universe_records: list[UniverseRecord]) -> dict:
+    universe_record = _universe_record_for_ticker(universe_records, ticker)
+    return {
+        "universe": universe_record.to_payload() if universe_record else market_data.universe_snapshot,
+        "price_source": market_data.provider,
+        "price_latest_trade_date": market_data.latest_trade_dates.get(ticker),
+        "market_metrics": market_data.market_metrics.get(ticker, {}),
+        "source_risks": [universe_record.source_risk] if universe_record and universe_record.source_risk else [],
+    }
+
+
+def _universe_record_for_ticker(records: list[UniverseRecord], ticker: str) -> UniverseRecord | None:
+    for record in records:
+        if record.ticker == ticker:
+            return record
+    return None
 
 
 def _build_portfolio_source(settings: dict) -> PortfolioSource:

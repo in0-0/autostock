@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Protocol
 
 from src.utils.atomic import atomic_write_json
+from src.utils.redaction import sanitize_error_message
 
 UNIVERSE_CACHE_SCHEMA_VERSION = 1
 SOURCE_RISK_OFFICIAL_API = "official_api"
@@ -250,5 +251,4 @@ def _frame_rows(frame: object) -> list[dict]:
 
 
 def _stable_error(exc: Exception) -> str:
-    message = str(exc) or exc.__class__.__name__
-    return message.splitlines()[0][:120]
+    return sanitize_error_message(exc).splitlines()[0][:120]

@@ -52,6 +52,7 @@ class MarketDataBundle:
     market_metrics: dict[str, dict] = field(default_factory=dict)
     exclusion_reasons: dict[str, list[str]] = field(default_factory=dict)
     universe_snapshot: dict | None = None
+    latest_trade_dates: dict[str, str] = field(default_factory=dict)
 
 
 class MarketDataProvider(Protocol):
@@ -160,6 +161,7 @@ class PykrxMarketDataProvider:
         technicals: dict[str, TechnicalRecord] = {}
         current_prices: dict[str, int] = {}
         market_metrics: dict[str, dict] = {}
+        latest_trade_dates: dict[str, str] = {}
 
         for ticker in self.universe:
             price_rows = self._load_price_rows(ticker)
@@ -168,6 +170,7 @@ class PykrxMarketDataProvider:
 
             normalized = _normalize_daily_ohlcv(price_rows)
             current_prices[ticker] = int(price_rows[-1].close)
+            latest_trade_dates[ticker] = price_rows[-1].trade_date.isoformat()
             technicals[ticker] = TechnicalRecord(
                 ticker=ticker,
                 monthly_close=normalized.monthly_close,
@@ -192,6 +195,7 @@ class PykrxMarketDataProvider:
             stale_warnings=["macro_data_unavailable:pykrx"],
             macro_provider="unavailable",
             market_metrics=market_metrics,
+            latest_trade_dates=latest_trade_dates,
         )
 
     def _load_price_rows(self, ticker: str) -> list[DailyPriceRow]:
@@ -246,6 +250,7 @@ class FinanceDataReaderMarketDataProvider:
         fundamentals: list[FundamentalRecord] = []
         technicals: dict[str, TechnicalRecord] = {}
         current_prices: dict[str, int] = {}
+        latest_trade_dates: dict[str, str] = {}
 
         for ticker in self.universe:
             price_rows = self._load_price_rows(ticker)
@@ -254,6 +259,7 @@ class FinanceDataReaderMarketDataProvider:
 
             normalized = _normalize_daily_ohlcv(price_rows)
             current_prices[ticker] = int(price_rows[-1].close)
+            latest_trade_dates[ticker] = price_rows[-1].trade_date.isoformat()
             technicals[ticker] = TechnicalRecord(
                 ticker=ticker,
                 monthly_close=normalized.monthly_close,
@@ -272,8 +278,9 @@ class FinanceDataReaderMarketDataProvider:
             provider=self.name,
             current_prices=current_prices,
             telemetry=[ProviderTelemetry(provider=self.name, success=True)],
-            stale_warnings=["macro_data_unavailable:fdr"],
+            stale_warnings=["macro_data_unavailable:fdr", "market_metrics_unavailable:fdr"],
             macro_provider="unavailable",
+            latest_trade_dates=latest_trade_dates,
         )
 
     def _load_price_rows(self, ticker: str) -> list[DailyPriceRow]:
@@ -369,6 +376,9 @@ def candidate_completeness_warnings(
     *,
     provider: str,
     provider_warnings: list[str] | None = None,
+    latest_trade_date: str | None = None,
+    price_max_age_days: int | None = None,
+    allowed_source_risks: set[str] | None = None,
 ) -> list[str]:
     warnings: list[str] = []
     if current_price is None or current_price <= 0:
@@ -380,12 +390,24 @@ def candidate_completeness_warnings(
             warnings.append("stale_or_short_weekly_series")
         if len(technical.monthly_close) < 20:
             warnings.append("stale_or_short_monthly_series")
+    if price_max_age_days is not None:
+        if latest_trade_date:
+            try:
+                trade_date = date.fromisoformat(latest_trade_date)
+                if date.today() - trade_date > timedelta(days=price_max_age_days):
+                    warnings.append("stale_price_data")
+            except ValueError:
+                warnings.append("stale_price_data")
+        elif provider not in {"sample", "fixture", "fixture_realistic"}:
+            warnings.append("stale_price_data")
     if fundamental.peg <= 0:
         warnings.append("missing_or_invalid_peg")
     if fundamental.roe_3y_avg <= 0 or fundamental.operating_margin <= 0 or fundamental.debt_ratio >= 999:
         warnings.append("missing_full_fundamental_fields")
     if not provider or provider == "none":
         warnings.append("missing_provider_provenance")
+    if allowed_source_risks is not None and fundamental.source_risk and fundamental.source_risk not in allowed_source_risks:
+        warnings.append("source_risk_blocked")
     for provider_warning in provider_warnings or []:
         if provider_warning.startswith(("stale_", "missing_full_fundamental_fields")):
             warnings.append(f"provider_warning:{provider_warning}")
@@ -533,6 +555,7 @@ def _bundle_to_payload(bundle: MarketDataBundle, *, written_at: datetime | None 
         "market_metrics": bundle.market_metrics,
         "exclusion_reasons": bundle.exclusion_reasons,
         "universe_snapshot": bundle.universe_snapshot,
+        "latest_trade_dates": bundle.latest_trade_dates,
     }
 
 
@@ -556,6 +579,7 @@ def _bundle_from_payload(payload: dict) -> MarketDataBundle:
         market_metrics={str(ticker): dict(values) for ticker, values in payload.get("market_metrics", {}).items()},
         exclusion_reasons={str(ticker): list(reasons) for ticker, reasons in payload.get("exclusion_reasons", {}).items()},
         universe_snapshot=payload.get("universe_snapshot"),
+        latest_trade_dates={str(ticker): str(value) for ticker, value in payload.get("latest_trade_dates", {}).items()},
     )
 
 

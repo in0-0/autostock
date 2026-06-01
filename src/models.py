@@ -144,6 +144,7 @@ class Candidate(Serializable):
     final_rank: int | None = None
     review_score: float | None = None
     score_inputs: dict[str, Any] = field(default_factory=dict)
+    data_provenance: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -174,3 +175,4 @@ class ExplainLog(Serializable):
     market_data_warnings: list[str] = field(default_factory=list)
     telegram_delivery_status: str = "disabled"
     exclusion_counts: dict[str, int] = field(default_factory=dict)
+    universe_snapshot: dict[str, Any] | None = None

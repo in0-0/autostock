@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from src.collectors.dart import DartFinancialProvider, parse_corp_code_zip, normalize_dart_fundamental
+from src.collectors.dart import DartFinancialCache, DartFinancialProvider, parse_corp_code_zip, normalize_dart_fundamental
 from src.collectors.google_sheets import READONLY_SCOPE, GoogleSheetsConfig, GoogleSheetsPortfolioSource, parse_portfolio_rows
 from src.collectors.market_data import (
     CachedMarketDataProvider,
@@ -542,6 +542,28 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(result.exclusions["005930"], ["dart_api_key_missing"])
         self.assertIn("dart_api_key_missing", result.warnings)
 
+    def test_dart_financial_cache_reuses_rows_without_refetching(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = DartFinancialCache(tmp)
+            calls = 0
+
+            def fetcher() -> list[dict]:
+                nonlocal calls
+                calls += 1
+                return _dart_rows()
+
+            first = cache.load_or_fetch(corp_code="00126380", bsns_year="2025", reprt_code="11011", fetcher=fetcher)
+            second = cache.load_or_fetch(
+                corp_code="00126380",
+                bsns_year="2025",
+                reprt_code="11011",
+                fetcher=lambda: self.fail("fresh financial cache should avoid live refetch"),
+            )
+
+        self.assertEqual(first, second)
+        self.assertEqual(calls, 1)
+        self.assertEqual(cache.last_cache_status, "hit")
+
 
     def test_apply_financial_data_uses_default_cache_dir_for_corp_codes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -627,6 +649,23 @@ class Phase1Tests(unittest.TestCase):
         self.assertIn("universe_provider_failed:failing:offline", warnings)
         self.assertIn("universe_provider_empty:empty", warnings)
         self.assertIn("universe_empty", warnings)
+
+    def test_universe_provider_failure_messages_are_sanitized(self) -> None:
+        class FailingUniverseProvider:
+            name = "failing"
+
+            def load(self) -> list[UniverseRecord]:
+                raise RuntimeError("token=secret password=hunter2 https://example.com/private")
+
+        records, warnings = load_universe_with_fallback([FailingUniverseProvider()])
+
+        self.assertEqual(records, [])
+        joined = " ".join(warnings)
+        self.assertIn("token=[redacted]", joined)
+        self.assertIn("password=[redacted]", joined)
+        self.assertIn("[url]", joined)
+        self.assertNotIn("secret", joined)
+        self.assertNotIn("hunter2", joined)
 
     def test_cached_universe_provider_uses_fresh_cache_and_records_schema(self) -> None:
         class StaticUniverseProvider:
@@ -892,6 +931,102 @@ class Phase1Tests(unittest.TestCase):
 
         self.assertNotIn("provider_warning:macro_data_unavailable:fixture_realistic", warnings)
 
+    def test_candidate_completeness_blocks_stale_price_data(self) -> None:
+        fundamental = FundamentalRecord(
+            ticker="005930",
+            name="삼성전자",
+            roe_3y_avg=0.12,
+            debt_ratio=0.31,
+            operating_margin=0.11,
+            net_income_growth=0.18,
+            operating_income_growth=0.16,
+            previous_net_income=10_000,
+            current_net_income=11_800,
+            peg=0.42,
+        )
+        technical = TechnicalRecord(
+            ticker="005930",
+            monthly_close=[100.0] * 20,
+            weekly_close=[100.0] * 20,
+            weekly_volume=[100.0] * 20,
+            listed_weeks=120,
+        )
+
+        warnings = candidate_completeness_warnings(
+            fundamental,
+            technical,
+            50_000,
+            provider="pykrx",
+            latest_trade_date=(date.today() - timedelta(days=10)).isoformat(),
+            price_max_age_days=3,
+        )
+
+        self.assertIn("stale_price_data", warnings)
+
+    def test_candidate_completeness_blocks_missing_real_price_trade_date(self) -> None:
+        fundamental = FundamentalRecord(
+            ticker="005930",
+            name="삼성전자",
+            roe_3y_avg=0.12,
+            debt_ratio=0.31,
+            operating_margin=0.11,
+            net_income_growth=0.18,
+            operating_income_growth=0.16,
+            previous_net_income=10_000,
+            current_net_income=11_800,
+            peg=0.42,
+        )
+        technical = TechnicalRecord(
+            ticker="005930",
+            monthly_close=[100.0] * 20,
+            weekly_close=[100.0] * 20,
+            weekly_volume=[100.0] * 20,
+            listed_weeks=120,
+        )
+
+        warnings = candidate_completeness_warnings(
+            fundamental,
+            technical,
+            50_000,
+            provider="pykrx",
+            latest_trade_date=None,
+            price_max_age_days=3,
+        )
+
+        self.assertIn("stale_price_data", warnings)
+
+    def test_candidate_completeness_blocks_disallowed_source_risk(self) -> None:
+        fundamental = FundamentalRecord(
+            ticker="005930",
+            name="삼성전자",
+            roe_3y_avg=0.12,
+            debt_ratio=0.31,
+            operating_margin=0.11,
+            net_income_growth=0.18,
+            operating_income_growth=0.16,
+            previous_net_income=10_000,
+            current_net_income=11_800,
+            peg=0.42,
+            source_risk="crawler_snapshot",
+        )
+        technical = TechnicalRecord(
+            ticker="005930",
+            monthly_close=[100.0] * 20,
+            weekly_close=[100.0] * 20,
+            weekly_volume=[100.0] * 20,
+            listed_weeks=120,
+        )
+
+        warnings = candidate_completeness_warnings(
+            fundamental,
+            technical,
+            50_000,
+            provider="crawler",
+            allowed_source_risks={"official_api"},
+        )
+
+        self.assertIn("source_risk_blocked", warnings)
+
     def test_macro_unavailable_is_caution_not_risk_off(self) -> None:
         status, indicators = MacroEngine().evaluate(load_unavailable_macro())
 
@@ -1129,6 +1264,8 @@ class Phase1Tests(unittest.TestCase):
             self.assertEqual(explain["items"][0]["final_rank"], 1)
             self.assertGreater(explain["items"][0]["review_score"], 0)
             self.assertEqual(explain["items"][0]["score_inputs"]["macro_status"], "NORMAL")
+            self.assertEqual(explain["items"][0]["data_provenance"]["price_source"], "fixture_realistic")
+            self.assertIn("field_provenance", explain["items"][0]["data_provenance"])
             self.assertEqual(explain["portfolio_source_type"], "google_sheets")
             self.assertEqual(explain["source_warnings"], [])
             self.assertEqual(explain["failed_sources"], [])
@@ -1238,6 +1375,7 @@ class Phase1Tests(unittest.TestCase):
             self.assertIn("macro_data_unavailable:fixture_realistic", explain["market_data_warnings"])
             self.assertEqual(explain["items"][0]["final_rank"], 1)
             self.assertEqual(explain["items"][0]["score_inputs"]["macro_status"], "CAUTION")
+            self.assertEqual(explain["items"][0]["data_provenance"]["price_source"], "fixture_realistic")
             self.assertIn("macro_data_unavailable:fixture_realistic", explain["items"][0]["risks"])
             self.assertIn("macro_caution_penalty", explain["items"][0]["risks"])
 
@@ -1345,6 +1483,7 @@ class Phase1Tests(unittest.TestCase):
             explain = json.loads(explain_files[0].read_text(encoding="utf-8"))
             self.assertEqual(explain["macro_status"], "RISK_OFF")
             self.assertIsNone(explain["items"][0]["final_rank"])
+            self.assertEqual(explain["items"][0]["data_provenance"]["price_source"], "fixture_realistic")
             self.assertIn("macro_risk_off", explain["items"][0]["risks"])
 
 
