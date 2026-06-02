@@ -1,0 +1,37 @@
+{
+  "mode": "ralplan",
+  "task": "v0.2 release-confidence evidence bundle",
+  "created_utc": "20260602T152353Z",
+  "source_spec": ".omx/specs/deep-interview-next-steps-spec.md",
+  "context_snapshot": ".omx/context/next-steps-spec-20260602T145142Z.md",
+  "planning_artifacts": {
+    "prd": ".omx/plans/prd-v0-2-release-confidence-20260602T150524Z.md",
+    "test_spec": ".omx/plans/test-spec-v0-2-release-confidence-20260602T150524Z.md"
+  },
+  "ralplan_architect_review": {
+    "agent_id": "019e88eb-e2ce-7471-a9c8-13cfbf72b61f",
+    "order": 1,
+    "verdict": "APPROVE",
+    "summary": "Architect approved final plan after verifying Telegram env handling, executable smoke preflight, non-printing secret scans, smoke profile ignore/untracked handoff, and preservation of no Google Sheets live read / no Telegram live send boundaries."
+  },
+  "ralplan_critic_review": {
+    "agent_id": "019e88ec-e14e-7842-8017-404040276a37",
+    "order": 2,
+    "verdict": "APPROVE",
+    "summary": "Critic approved final plan as actionable without guessing. Final conditions: smoke preflight before provider smoke, run smoke with Telegram env vars unset, do not print/commit secrets or generated outputs, document missing key/provider/network blockers, update Korean docs, and verify with pytest plus staged-file and secret-safety scans."
+  },
+  "ralplan_consensus_gate": {
+    "complete": true,
+    "order": [
+      "architect",
+      "critic"
+    ],
+    "iterations": 4,
+    "approved": true
+  },
+  "recommended_follow_up": {
+    "default": "$ultragoal .omx/plans/prd-v0-2-release-confidence-20260602T150524Z.md",
+    "parallel": "$team .omx/plans/prd-v0-2-release-confidence-20260602T150524Z.md",
+    "fallback": "$ralph .omx/plans/prd-v0-2-release-confidence-20260602T150524Z.md"
+  }
+}
