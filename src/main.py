@@ -358,8 +358,21 @@ def _apply_financial_data(settings: dict, market_data_mode: str, universe_record
                 market_data.stale_warnings.append("stale_dart_corp_code_cache")
         except Exception as exc:
             market_data.stale_warnings.append(f"dart_corp_code_failed:{sanitize_error_message(exc)}")
-    financial_cache = DartFinancialCache(cache_dir) if api_key and cache_dir else None
-    provider = DartFinancialProvider(api_key=api_key, corp_code_mapping=mapping, financial_cache=financial_cache)
+    financial_cache_max_age_days = int(get_nested(settings, "market_data", "freshness", "fundamental_max_age_days", default=120))
+    financial_cache = (
+        DartFinancialCache(cache_dir, max_age_days=financial_cache_max_age_days)
+        if api_key and cache_dir
+        else None
+    )
+    bsns_year = str(financial_settings.get("bsns_year") or "") or None
+    reprt_code = str(financial_settings.get("reprt_code") or "11011")
+    provider = DartFinancialProvider(
+        api_key=api_key,
+        corp_code_mapping=mapping,
+        bsns_year=bsns_year,
+        reprt_code=reprt_code,
+        financial_cache=financial_cache,
+    )
     result = provider.load_for_universe(universe_records, market_metrics=market_data.market_metrics)
     market_data.fundamentals = result.fundamentals
     market_data.exclusion_reasons = _merge_exclusion_reasons(market_data.exclusion_reasons, result.exclusions)

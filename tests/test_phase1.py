@@ -59,6 +59,7 @@ from src.models import (
 from src.main import _apply_financial_data, _build_portfolio_source, _resolve_market_universe, _send_telegram_report
 from src.reporting import render_markdown_report
 from src.utils.atomic import atomic_write_json
+from src.utils.config import load_settings
 
 
 class Phase1Tests(unittest.TestCase):
@@ -67,6 +68,21 @@ class Phase1Tests(unittest.TestCase):
             path = Path(tmp) / "state.json"
             atomic_write_json(path, {"positions": {"005930": {"quantity": 10}}})
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["positions"]["005930"]["quantity"], 10)
+
+    def test_spreadsheet_example_declares_real_provider_auth_cache_and_bounded_universe(self) -> None:
+        settings = load_settings(Path(__file__).resolve().parents[1] / "config" / "settings.spreadsheet.example.yaml")
+
+        self.assertEqual(settings["market_data"]["mode"], "real")
+        self.assertEqual(settings["market_data"]["universe"], [])
+        self.assertTrue(settings["market_data"]["universe_provider"]["enabled"])
+        self.assertGreater(settings["market_data"]["universe_provider"]["max_universe_size"], 0)
+        self.assertEqual(settings["market_data"]["cache_dir"], "data/market_cache")
+        self.assertGreater(settings["market_data"]["request_delay_seconds"], 0)
+        self.assertEqual(settings["financial_data"]["provider"], "opendart")
+        self.assertEqual(settings["financial_data"]["dart_api_key_env"], "AUTOSTOCK_DART_API_KEY")
+        self.assertEqual(settings["financial_data"]["reprt_code"], "11011")
+        self.assertIn("official_api", settings["source_risk_policy"]["allowed"])
+        self.assertFalse(settings["market_data"]["cross_check"]["enabled"])
 
     def test_fundamental_engine_uses_industry_cutoff_and_turnaround_block(self) -> None:
         settings = {
@@ -601,6 +617,83 @@ class Phase1Tests(unittest.TestCase):
 
         self.assertEqual(len(bundle.fundamentals), 1)
         self.assertEqual(bundle.fundamentals[0].source, "opendart")
+
+    def test_apply_financial_data_marks_every_resolved_ticker_when_dart_key_missing(self) -> None:
+        bundle = MarketDataBundle(
+            fundamentals=[],
+            technicals={},
+            macro=load_unavailable_macro(),
+            provider="pykrx",
+            current_prices={},
+            market_metrics={},
+        )
+        universe = [
+            UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("000660", "SK하이닉스", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+        ]
+
+        _apply_financial_data({"financial_data": {"provider": "opendart", "dart_api_key": ""}}, "real", universe, bundle)
+
+        self.assertEqual(bundle.fundamentals, [])
+        self.assertEqual(bundle.exclusion_reasons["005930"], ["dart_api_key_missing"])
+        self.assertEqual(bundle.exclusion_reasons["000660"], ["dart_api_key_missing"])
+        self.assertIn("dart_api_key_missing", bundle.stale_warnings)
+
+    def test_apply_financial_data_fetches_each_resolved_universe_record_with_configured_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_dir = Path(tmp) / "market_cache"
+            cache_dir.mkdir(parents=True)
+            atomic_write_json(
+                cache_dir / "opendart_corp_codes.json",
+                {
+                    "cache_schema_version": 1,
+                    "cache_written_at": datetime.now().isoformat(),
+                    "source": "opendart_corp_code",
+                    "source_risk": "official_api",
+                    "mapping": {"005930": "00126380", "000660": "00164779"},
+                },
+            )
+            settings = {
+                "market_data": {
+                    "cache_dir": str(cache_dir),
+                    "freshness": {"fundamental_max_age_days": 90},
+                },
+                "financial_data": {
+                    "provider": "opendart",
+                    "dart_api_key": "key",
+                    "bsns_year": "2024",
+                    "reprt_code": "11014",
+                },
+            }
+            bundle = MarketDataBundle(
+                fundamentals=[],
+                technicals={},
+                macro=load_unavailable_macro(),
+                provider="pykrx",
+                current_prices={},
+                market_metrics={"005930": {"per": 9.0}, "000660": {"per": 9.0}},
+            )
+            universe = [
+                UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+                UniverseRecord("000660", "SK하이닉스", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            ]
+            calls: list[dict] = []
+
+            class FakeResponse:
+                def json(self) -> dict:
+                    return {"status": "000", "list": _dart_rows()}
+
+            def fake_get(*args, **kwargs) -> FakeResponse:
+                calls.append(dict(kwargs["params"]))
+                return FakeResponse()
+
+            with patch("src.collectors.dart.requests.get", side_effect=fake_get):
+                _apply_financial_data(settings, "real", universe, bundle)
+
+        self.assertEqual({record.ticker for record in bundle.fundamentals}, {"005930", "000660"})
+        self.assertEqual({call["corp_code"] for call in calls}, {"00126380", "00164779"})
+        self.assertTrue(all(call["bsns_year"] == "2024" for call in calls))
+        self.assertTrue(all(call["reprt_code"] == "11014" for call in calls))
 
     def test_dart_financial_provider_requires_peg_inputs(self) -> None:
         universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
