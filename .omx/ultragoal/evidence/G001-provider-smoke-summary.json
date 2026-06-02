@@ -1,0 +1,41 @@
+{
+  "story": "G001-safe-provider-smoke-preflight-and-bo",
+  "settings_profile": "config/settings.provider-smoke.local",
+  "settings_profile_ignored": true,
+  "command_shape": "env -u AUTOSTOCK_TELEGRAM_BOT_TOKEN -u AUTOSTOCK_TELEGRAM_CHAT_ID python3 -m src.main --settings config/settings.provider-smoke.local",
+  "secret_values_printed": false,
+  "dart_api_key_available": false,
+  "open_dart_status": "blocked:dart_api_key_missing",
+  "market_data_provider": "pykrx",
+  "macro_provider": "unavailable",
+  "market_data_warnings": [
+    "universe_provider_failed:pykrx_universe:index -1 is out of bounds for axis 0 with size 0",
+    "macro_data_unavailable:pykrx",
+    "dart_api_key_missing"
+  ],
+  "telegram_delivery_status": "disabled",
+  "universe_snapshot": {
+    "source": "fdr_universe",
+    "source_risk": "package_public_source",
+    "count": 5,
+    "markets": [
+      "KOSPI",
+      "KOSDAQ"
+    ],
+    "collected_at": "2026-06-03T00:27:36.178426"
+  },
+  "exclusion_counts": {
+    "dart_api_key_missing": 5
+  },
+  "candidate_count": 0,
+  "explain_log_path": "data/explain_logs/explain_2026-06-03.json",
+  "report_path": "data/reports/report_2026-06-03.json",
+  "generated_outputs_committed": false,
+  "google_sheets_live_read": false,
+  "telegram_live_send": false,
+  "notes": [
+    "OpenDART API was not called because AUTOSTOCK_DART_API_KEY was absent; dart_api_key_missing was recorded as blocker evidence.",
+    "Bounded real-mode provider smoke completed with max_universe_size=5 and Telegram disabled.",
+    "pykrx universe provider emitted a sanitized failure warning; market data provider completed as shown in explain log."
+  ]
+}

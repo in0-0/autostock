@@ -1,6 +1,6 @@
 # 로드맵
 
-**마지막 갱신:** 2026-06-01
+**마지막 갱신:** 2026-06-03
 **현재 기준:** Google Sheets 기반 주말 매수 후보 리뷰 서비스
 **현재 버전:** v0.1.0 (개발 중)
 **다음 버전:** v0.2.0 (주말 후보 리뷰 MVP)
@@ -56,6 +56,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - [x] `python3 -m pytest` 통과.
 - [x] Google Sheets fixture 기반 CLI smoke run 통과.
 - [x] KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터 소스 결정.
+- [x] bounded real smoke에서 pykrx 가격 provider와 FDR universe fallback 확인.
+- [ ] OpenDART API key 기반 bounded coverage smoke 확인.
 - [x] 데이터 부족/제외 사유가 explain log에 기록됨.
 - [x] `RISK_OFF`에서 후보가 전역 차단되고, `CAUTION`에서 감점 또는 하향 표시가 검증됨.
 - [x] Telegram 리포트가 후보 목록 또는 후보 없음 사유, 리스크 경고, 생성 시각을 포함함.
@@ -73,8 +75,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 ## 백로그
 
 ### 데이터 소스
-- KOSPI/KOSDAQ 전체 종목 유니버스 provider 구현 후 bounded live smoke.
-- OpenDART 재무제표 provider 구현 후 API key 기반 coverage smoke.
+- KOSPI/KOSDAQ 전체 종목 유니버스 provider bounded smoke 결과 보강: pykrx universe 경고 발생 시 FDR fallback 근거와 stale/cache 정책을 운영 문서에 연결.
+- OpenDART 재무제표 provider는 구현됐으며, `AUTOSTOCK_DART_API_KEY`가 준비된 비추적 로컬 환경에서 bounded coverage smoke 재실행.
 - 가격/거래량 provider fallback의 stale-data 정책 강화.
 - provider별 출처, 실패, 캐시 사용 여부를 explain log에 일관되게 기록.
 

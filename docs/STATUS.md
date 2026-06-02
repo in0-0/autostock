@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-**마지막 갱신:** 2026-06-01
+**마지막 갱신:** 2026-06-03
 **상태:** v0.2.0 서비스 스펙 구현 검증 중
 **현재 버전:** v0.1.0 (개발 중)
 
@@ -32,11 +32,11 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 | 회귀 테스트 | 사용 가능 | `python3 -m pytest` |
 | Google Sheets 입력 | 구현됨 | 읽기 전용 parser, CSV/TSV fixture, source-neutral portfolio boundary |
 | 포트폴리오 병합 | 구현됨 | 같은 티커의 행을 통합하고 source warning을 기록 |
-| 가격 데이터 | 구현 보강 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry, KOSPI/KOSDAQ universe 자동 해석 |
-| 재무제표 데이터 | 구현됨 / live smoke 대기 | OpenDART 정규화 provider, corp-code cache, field provenance, missing-field exclusion 구현; 실제 API key 기반 coverage smoke 필요 |
+| 가격 데이터 | 구현 보강 / bounded smoke 통과 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry, bounded real smoke에서 pykrx 가격 provider 완료 및 FDR universe fallback 확인 |
+| 재무제표 데이터 | 구현됨 / OpenDART credential blocker | OpenDART 정규화 provider, corp-code cache, field provenance, missing-field exclusion 구현; 2026-06-03 smoke에서는 `AUTOSTOCK_DART_API_KEY` 부재로 API 호출 전 `dart_api_key_missing` blocker 기록 |
 | 후보 리포트 | 구현됨 | 근거, 리스크, provider 출처, 점수, 점수 입력값 기록 |
 | 매크로 정책 | 구현됨 | `RISK_OFF` 차단, `CAUTION` 감점/리스크 표시, 매크로 데이터 부족 컨텍스트 기록 |
-| Telegram | 구현됨 | Markdown 렌더링, 실제 전송 시도, `sent`/`failed:<redacted>`/`disabled` 상태 기록 |
+| Telegram | 구현됨 / live send 보류 | Markdown 렌더링, 실제 전송 시도, `sent`/`failed:<redacted>`/`disabled` 상태 기록; 2026-06-03 smoke에서는 credential 제거 상태로 `disabled` 확인 |
 | 증권사 연동 | 현재 범위 밖 | mock connector는 기준선/호환 경로로만 유지 |
 | 런타임 출력 | 구현됨 | `data/portfolio_state.json`, `data/reports/`, `data/explain_logs/` |
 
@@ -44,8 +44,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 | 우선순위 | 항목 | 이유 |
 |----------|------|------|
-| P0 | OpenDART/pykrx bounded live smoke | 구현은 완료됐지만 로컬 API key와 네트워크 기반 실제 coverage 확인이 필요함 |
-| P1 | 실제 Google Sheets/Telegram credential smoke | 로컬 비추적 credential이 있어야 운영 경로를 확인할 수 있음 |
+| P0 | OpenDART credential smoke | bounded provider smoke에서 pykrx 가격 provider는 완료됐지만, OpenDART는 `AUTOSTOCK_DART_API_KEY` 부재로 `dart_api_key_missing` blocker가 남음 |
+| P1 | 실제 Google Sheets/Telegram credential smoke | 이번 pass의 비목표다. 로컬 비추적 credential이 준비된 뒤 별도 test sheet/test chat으로 확인한다 |
 | P2 | sample/fixture 설정과 개인 운영 설정 분리 | 실데이터 실행에서 샘플 대체를 방지해야 함 |
 
 ## 최근 변경
@@ -59,9 +59,9 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - Telegram 전송 상태는 실행 산출물에 `disabled`, `sent`, `failed:<redacted>` 중 하나로 남긴다.
 - KOSPI/KOSDAQ universe provider, OpenDART 재무 정규화, provider별 cache/freshness 정책, exclusion count 리포팅을 추가했다.
 
+- 2026-06-03 KST에 `max_universe_size=5` provider smoke를 비추적 로컬 설정(`config/settings.provider-smoke.local`)으로 실행했다. 결과는 pykrx 가격 provider 완료, FDR universe fallback 5종목, 매크로 데이터 부족에 따른 `CAUTION`, Telegram `disabled`, OpenDART `dart_api_key_missing` blocker였다.
+- Google Sheets live read와 Telegram live send는 이번 release-confidence pass의 비목표로 남겼고, 실제 credential 없이 실행하지 않았다.
+
 ## 다음 작업
 
-v0.2.0의 주요 데이터-source 결정은 pykrx/FDR + OpenDART 경로로 구현됐다. 남은
-검증은 비추적 로컬 설정에서 OpenDART API key, 실제 Google Sheets 읽기, Telegram
-test chat 발송, bounded `max_universe_size` real smoke를 확인하는 것이다. 운영 스케줄,
-재시도, runbook은 v0.3.0 범위로 넘긴다.
+v0.2.0의 주요 데이터-source 결정은 pykrx/FDR + OpenDART 경로로 구현됐고, bounded real smoke에서 pykrx 가격 provider와 FDR universe fallback은 확인됐다. 남은 P0는 비추적 로컬 환경 변수 `AUTOSTOCK_DART_API_KEY`가 준비된 상태에서 OpenDART coverage smoke를 재실행하는 것이다. 실제 Google Sheets 읽기와 Telegram test chat 발송은 이번 pass에서는 제외한 P1 검증으로 남긴다. 운영 스케줄, 재시도, runbook은 v0.3.0 범위로 넘긴다.

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-02T15:26:26.844Z",
+  "updatedAt": "2026-06-02T15:37:02.191Z",
+  "briefPath": ".omx/ultragoal/brief.md",
+  "goalsPath": ".omx/ultragoal/goals.json",
+  "ledgerPath": ".omx/ultragoal/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-safe-provider-smoke-preflight-and-bo",
+      "title": "Safe provider-smoke preflight and bounded smoke evidence",
+      "objective": "Safe provider-smoke preflight and bounded smoke evidence\nCreate/use ignored `config/settings.provider-smoke.local` with broker_mock or fixture portfolio, Telegram disabled/placeholders, market_data.mode real, capped max_universe_size <= 50, cache_dir set, and financial_data.dart_api_key_env set.\nRun the smoke-profile preflight guard from the test spec.\nRun bounded provider smoke with `env -u AUTOSTOCK_TELEGRAM_BOT_TOKEN -u AUTOSTOCK_TELEGRAM_CHAT_ID`.\nCapture sanitized evidence for pykrx/FDR and OpenDART, or explicit blockers if credentials/provider/network are unavailable.\nDo not run Google Sheets live read or Telegram live send. Do not print secrets.",
+      "status": "complete",
+      "attempt": 1,
+      "createdAt": "2026-06-02T15:26:26.844Z",
+      "updatedAt": "2026-06-02T15:28:19.713Z",
+      "startedAt": "2026-06-02T15:26:27.120Z",
+      "completedAt": "2026-06-02T15:28:19.713Z",
+      "evidence": "Smoke-safe profile preflight passed; bounded real-mode provider smoke completed with market_data_provider=pykrx, universe source=fdr_universe count=5, telegram_delivery_status=disabled; OpenDART recorded blocker dart_api_key_missing because AUTOSTOCK_DART_API_KEY was absent; evidence saved in .omx/ultragoal/evidence/G001-provider-smoke-summary.md and .json."
+    },
+    {
+      "id": "G002-korean-release-documentation-update",
+      "title": "Korean release documentation update",
+      "objective": "Korean release documentation update\nUpdate project docs under `docs/` in Korean with sanitized evidence/blockers.\nClearly distinguish completed OpenDART/pykrx/FDR validation from deferred P1 Google Sheets/Telegram live smoke.\nDo not mark v0.2 complete unless evidence supports it or blockers are explicitly documented.",
+      "status": "complete",
+      "attempt": 1,
+      "createdAt": "2026-06-02T15:26:26.844Z",
+      "updatedAt": "2026-06-02T15:30:20.784Z",
+      "startedAt": "2026-06-02T15:28:19.967Z",
+      "completedAt": "2026-06-02T15:30:20.784Z",
+      "evidence": "Korean docs updated: docs/STATUS.md and docs/ROADMAP.md reflect bounded pykrx/FDR provider-smoke evidence, OpenDART dart_api_key_missing blocker, and deferred P1 Google Sheets/Telegram live smoke; docs/qa/PROVIDER_SMOKE_2026-06-03.md records sanitized commands, warnings, results, and next actions."
+    },
+    {
+      "id": "G003-verification-final-quality-gate-and",
+      "title": "Verification, final quality gate, and scoped commit",
+      "objective": "Verification, final quality gate, and scoped commit\nRun `python3 -m pytest`.\nRun staged forbidden-path guard and non-printing secret-safety scan.\nEnsure no generated `data/`, `config/*.local*`, credential JSON, token, or local settings file is committed.\nRun final ai-slop-cleaner no-op/changed-file pass and independent code-review gate required by Ultragoal.\nCommit only intended tracked docs/planning changes with Conventional Commit + Lore trailers.",
+      "status": "complete",
+      "attempt": 1,
+      "createdAt": "2026-06-02T15:26:26.844Z",
+      "updatedAt": "2026-06-02T15:37:02.191Z",
+      "startedAt": "2026-06-02T15:30:24.857Z",
+      "evidence": "Final verification and quality gate passed: git diff checks clean, python3 -m pytest reported 61 passed, staged forbidden-path guard and non-printing secret scan passed, local smoke profile/generated data remained ignored, ai-slop-cleaner no-op/changed-file pass recorded, independent code-reviewer APPROVE and architect CLEAR evidence recorded. Scoped commit to follow with intended docs/.omx artifacts only.",
+      "completedAt": "2026-06-02T15:37:02.191Z"
+    }
+  ],
+  "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail."
+}
