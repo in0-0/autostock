@@ -1,0 +1,30 @@
+# Deep Interview Context Snapshot: macro-growth-report-meaning
+
+- Task statement: Interview the owner about how to improve AutoStock's macro market data and weekly growth-stock candidate output because the current Telegram/service output feels meaningless.
+- Desired outcome: An execution-ready requirements spec for improving report usefulness, not direct implementation in this mode.
+- Stated solution: The user did not propose a concrete solution; they asked to interview about improvement direction.
+- Probable intent hypothesis: The owner wants the report to communicate actionable portfolio review meaning even when live macro/fundamental providers are unavailable or candidate screening returns no names.
+- Known facts/evidence:
+  - `src/reporting.py` renders raw macro booleans (`KOSPI 10MA: False`) and raw `None` values for unavailable US rate/yield curve.
+  - `src/engines/macro.py` sets `CAUTION` when KOSPI/KOSDAQ monthly close series are shorter than 10 months; unavailable series still render booleans as `False`.
+  - `src/collectors/market_data.py` pykrx/FDR real providers currently return `load_unavailable_macro()` for macro and add `macro_data_unavailable:*` warnings.
+  - `src/engines/portfolio.py` returns no ranked candidates if rankable candidate count is below `strategy.min_candidates` (default 5), even if 1-4 candidates pass.
+  - Candidate exclusion counts are rendered as raw reason keys such as `missing_peg_inputs` and `provider_failed:opendart:dart_status:013`.
+  - `docs/STATUS.md` says macro data shortage is intended to be CAUTION context plus score penalty, not silent sample fallback or global block.
+  - User-provided output shows CAUTION, unavailable US rate/yield spread, no candidates, many exclusion reasons, pykrx universe failure, macro unavailable, portfolio row warnings, Telegram sent.
+- Constraints:
+  - Deep-interview only; no implementation inside this mode.
+  - Preserve Korean project documentation conventions for future docs; .omx artifacts are agent-facing English.
+  - Do not ask user for code facts that can be inspected locally.
+- Unknowns/open questions:
+  - What should “meaningful” mean: user-facing explanation, actionable recommendation, data coverage improvement, fallback ranking, or operational diagnostics?
+  - Whether the report should hide degraded sections, explain them, or replace them with next actions.
+  - Whether zero candidates should remain conservative or show partial/watchlist candidates.
+  - Which decisions the agent may make without confirmation.
+- Decision-boundary unknowns:
+  - Whether changing screening thresholds/min candidate behavior is allowed.
+  - Whether adding/changing data providers is allowed.
+  - Whether report wording/format changes may be made autonomously.
+- Likely codebase touchpoints:
+  - `src/reporting.py`, `src/engines/macro.py`, `src/engines/portfolio.py`, `src/collectors/market_data.py`, `src/main.py`, tests in `tests/test_phase1.py`, docs under `docs/`.
+- Prompt-safe initial-context summary status: not_needed

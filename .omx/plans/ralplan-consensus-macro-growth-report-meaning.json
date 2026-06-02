@@ -1,0 +1,26 @@
+{
+  "task": "meaningful macro and growth-candidate report",
+  "source_spec": ".omx/specs/deep-interview-macro-growth-report-meaning.md",
+  "planning_artifacts": {
+    "prd": ".omx/plans/prd-macro-growth-report-meaning.md",
+    "test_spec": ".omx/plans/test-spec-macro-growth-report-meaning.md"
+  },
+  "ralplan_architect_review": {
+    "order": 1,
+    "agent_id": "019e8a1c-f2f5-71d2-83d9-652f76fe3ca8",
+    "verdict": "APPROVE",
+    "summary": "Architecture clear after iteration: raw-key rule tightened, full taxonomy coverage, deterministic verification task synthesis, explicit verification vs operational section split, RISK_OFF coverage, boundary compliance."
+  },
+  "ralplan_critic_review": {
+    "order": 2,
+    "agent_id": "019e8a1d-de03-7a20-b70d-3bdb5b507b6d",
+    "verdict": "APPROVE",
+    "summary": "Execution-ready: clear localized reporting plan, testable criteria, complete degraded-state coverage, boundary compliance, concrete handoff. Non-blocking improvements merged."
+  },
+  "ralplan_consensus_gate": {
+    "complete": true,
+    "required_order": ["architect", "critic"],
+    "completed_order": ["architect", "critic"]
+  },
+  "recommended_follow_up": "$ultragoal .omx/plans/prd-macro-growth-report-meaning.md"
+}
