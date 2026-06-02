@@ -1,0 +1,51 @@
+{
+  "story": "G001-safe-provider-smoke-preflight-and-bo-supplemental-local-dart-key-rerun",
+  "settings_profile": "config/settings.provider-smoke.local",
+  "local_key_source": "config/settings.local.yaml financial_data.dart_api_key (presence checked only; value not printed)",
+  "command_shape": "env -u AUTOSTOCK_TELEGRAM_BOT_TOKEN -u AUTOSTOCK_TELEGRAM_CHAT_ID python3 -m src.main --settings config/settings.provider-smoke.local",
+  "secret_values_printed": false,
+  "dart_api_key_available": true,
+  "open_dart_status": "exercised:credential_path_no_dart_api_key_missing",
+  "open_dart_followups": [
+    "provider_failed:opendart:dart_status:013",
+    "missing_peg_inputs",
+    "missing_net_income_growth_inputs",
+    "missing_roe_inputs"
+  ],
+  "market_data_provider": "pykrx",
+  "macro_status": "CAUTION",
+  "macro_provider": "unavailable",
+  "market_data_warnings": [
+    "universe_provider_failed:pykrx_universe:index -1 is out of bounds for axis 0 with size 0",
+    "macro_data_unavailable:pykrx"
+  ],
+  "telegram_delivery_status": "disabled",
+  "universe_snapshot": {
+    "source": "fdr_universe",
+    "source_risk": "package_public_source",
+    "count": 5,
+    "markets": [
+      "KOSPI",
+      "KOSDAQ"
+    ],
+    "collected_at": "2026-06-03T00:27:36.178426"
+  },
+  "exclusion_counts": {
+    "missing_peg_inputs": 4,
+    "missing_net_income_growth_inputs": 1,
+    "missing_roe_inputs": 1,
+    "provider_failed:opendart:dart_status:013": 1
+  },
+  "candidate_count": 0,
+  "explain_log_path": "data/explain_logs/explain_2026-06-03.json",
+  "report_path": "data/reports/report_2026-06-03.json",
+  "generated_outputs_committed": false,
+  "google_sheets_live_read": false,
+  "telegram_live_send": false,
+  "notes": [
+    "A supplemental bounded smoke rerun used the non-tracked local YAML DART key without printing the key value.",
+    "dart_api_key_missing disappeared from exclusion_counts, proving the OpenDART credential path was exercised.",
+    "Remaining exclusions are data/provider coverage results, including dart_status:013 for one ticker and missing financial scoring inputs for others.",
+    "Google Sheets live read and Telegram live send remained disabled/non-goals for this pass."
+  ]
+}

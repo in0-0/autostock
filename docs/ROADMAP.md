@@ -57,7 +57,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - [x] Google Sheets fixture 기반 CLI smoke run 통과.
 - [x] KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터 소스 결정.
 - [x] bounded real smoke에서 pykrx 가격 provider와 FDR universe fallback 확인.
-- [ ] OpenDART API key 기반 bounded coverage smoke 확인.
+- [x] OpenDART API key 기반 bounded smoke에서 credential path와 exclusion 기록 확인.
+- [ ] OpenDART `dart_status:013`/재무 입력 부족 coverage 해석 보강.
 - [x] 데이터 부족/제외 사유가 explain log에 기록됨.
 - [x] `RISK_OFF`에서 후보가 전역 차단되고, `CAUTION`에서 감점 또는 하향 표시가 검증됨.
 - [x] Telegram 리포트가 후보 목록 또는 후보 없음 사유, 리스크 경고, 생성 시각을 포함함.
@@ -76,7 +77,7 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 ### 데이터 소스
 - KOSPI/KOSDAQ 전체 종목 유니버스 provider bounded smoke 결과 보강: pykrx universe 경고 발생 시 FDR fallback 근거와 stale/cache 정책을 운영 문서에 연결.
-- OpenDART 재무제표 provider는 구현됐으며, `AUTOSTOCK_DART_API_KEY`가 준비된 비추적 로컬 환경에서 bounded coverage smoke 재실행.
+- OpenDART 재무제표 provider는 구현됐으며, 로컬 YAML key 기반 bounded smoke에서 `dart_api_key_missing` 없이 exclusion 기록을 확인했다. 남은 작업은 `dart_status:013`과 재무 입력 부족 결과의 coverage 해석 보강이다.
 - 가격/거래량 provider fallback의 stale-data 정책 강화.
 - provider별 출처, 실패, 캐시 사용 여부를 explain log에 일관되게 기록.
 
