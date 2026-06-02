@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoStock 엔지니어링 학습 가이드</title>
+    <!-- Google Fonts & Lucide Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0f172a;
+            --bg-surface: #1e293b;
+            --bg-surface-hover: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.15);
+            --accent: #c084fc;
+            --success: #34d399;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --border: #475569;
+            --font-sans: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+            --font-mono: 'Fira Code', monospace;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            overflow-x: hidden;
+            display: flex;
+        }
+
+        /* Sidebar Navigation */
+        aside {
+            width: 280px;
+            height: 100vh;
+            background-color: #0b0f19;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem 1.5rem;
+            z-index: 100;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 3rem;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 1.2rem;
+        }
+
+        .logo-text {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--text-main), var(--text-muted));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .nav-item:hover, .nav-item.active {
+            color: var(--text-main);
+            background-color: var(--bg-surface);
+            box-shadow: inset 4px 0 0 var(--primary);
+        }
+
+        .nav-item i {
+            margin-right: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        /* Main Content Container */
+        main {
+            margin-left: 280px;
+            flex: 1;
+            min-height: 100vh;
+            padding: 3rem 4rem;
+            max-width: 1200px;
+        }
+
+        header {
+            margin-bottom: 4rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 2rem;
+        }
+
+        .subtitle {
+            color: var(--primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #ffffff 30%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-desc {
+            color: var(--text-muted);
+            font-size: 1.15rem;
+            max-width: 800px;
+        }
+
+        /* Section Styling */
+        section {
+            display: none;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-left: 5px solid var(--primary);
+            padding-left: 0.75rem;
+        }
+
+        p {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        /* Concept Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: #64748b;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-tag {
+            background-color: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .card h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+            color: #ffffff;
+        }
+
+        /* Code Blocks */
+        .code-container {
+            position: relative;
+            margin: 1.5rem 0;
+        }
+
+        pre {
+            background-color: #0b0f19;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+
+        .code-lang {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Inline code */
+        code.inline {
+            background-color: var(--bg-surface);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            color: var(--accent);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Callouts */
+        .callout {
+            padding: 1.25rem;
+            border-radius: 8px;
+            border-left: 4px solid;
+            margin: 1.5rem 0;
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .callout.info { border-color: var(--primary); color: #e0f2fe; }
+        .callout.success { border-color: var(--success); color: #ecfdf5; }
+        .callout.warning { border-color: var(--warning); color: #fffbeb; }
+        .callout.danger { border-color: var(--danger); color: #fef2f2; }
+
+        .callout-title {
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Interactive Quiz Layout */
+        .quiz-container {
+            background-color: #0b0f19;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .quiz-question {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #ffffff;
+        }
+
+        .quiz-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .quiz-option {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .quiz-option:hover {
+            border-color: var(--primary);
+            background-color: var(--bg-surface-hover);
+        }
+
+        .quiz-option.selected {
+            border-color: var(--primary);
+            background-color: rgba(56, 189, 248, 0.1);
+        }
+
+        .quiz-option.correct {
+            border-color: var(--success);
+            background-color: rgba(52, 211, 153, 0.1);
+        }
+
+        .quiz-option.wrong {
+            border-color: var(--danger);
+            background-color: rgba(248, 113, 113, 0.1);
+        }
+
+        .quiz-feedback {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none;
+        }
+
+        /* Action Steps */
+        .steps {
+            position: relative;
+            padding-left: 2rem;
+            border-left: 2px dashed var(--border);
+            margin: 2rem 0 2rem 1rem;
+        }
+
+        .step-item {
+            position: relative;
+            margin-bottom: 2.5rem;
+        }
+
+        .step-item::before {
+            content: '';
+            position: absolute;
+            left: -2.75rem;
+            top: 0.25rem;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: var(--bg-base);
+            border: 4px solid var(--primary);
+        }
+
+        .step-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            font-size: 0.95rem;
+        }
+
+        th, td {
+            padding: 0.85rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: rgba(255,255,255,0.03);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: rgba(255,255,255,0.01);
+        }
+
+        /* Responsive */
+        @media(max-width: 1024px) {
+            body {
+                flex-direction: column;
+            }
+            aside {
+                width: 100%;
+                height: auto;
+                position: relative;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 1.5rem;
+            }
+            main {
+                margin-left: 0;
+                padding: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside>
+        <div class="logo-area">
+            <div class="logo-icon">A</div>
+            <div class="logo-text">AutoStock Edu</div>
+        </div>
+        <ul class="nav-links">
+            <li><a class="nav-item active" data-target="intro">💡 학습 가이드 소개</a></li>
+            <li><a class="nav-item" data-target="architecture">🏛️ 파이프라인 아키텍처</a></li>
+            <li><a class="nav-item" data-target="patterns">🧩 3대 디자인 패턴</a></li>
+            <li><a class="nav-item" data-target="networking">🌐 네트워킹 & Fallback</a></li>
+            <li><a class="nav-item" data-target="security">🛡️ 보안 & 품질 게이트</a></li>
+            <li><a class="nav-item" data-target="action">🚀 실력 향상 액션플랜</a></li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main>
+        <header>
+            <div class="subtitle">Software Engineering Study Guide</div>
+            <h1 id="main-header-title">고급 개발자를 위한 아키텍처 & 방법론 가이드</h1>
+            <p class="header-desc">AutoStock 구현 과정에 채택된 엄격한 소프트웨어 설계 원칙, 실전 디자인 패턴, 그리고 강력한 품질 보증 메커니즘을 상세히 다룹니다. 코드 조각과 함께 단계적으로 학습하십시오.</p>
+        </header>
+
+        <!-- Section: Intro -->
+        <section id="intro" class="active">
+            <h2 class="section-title">학습 가이드 소개</h2>
+            <p>이 가이드는 AutoStock의 Python 백엔드 배치 파이프라인 설계에서 파생된 소프트웨어 공학 지식을 정리한 것입니다. 단순한 코딩을 넘어 <strong>"네트워크 불안정성 속에서 결함 없는 데이터 가계도를 유지하는 배치 시스템"</strong>을 설계하기 위한 깊이 있는 레슨을 담고 있습니다.</p>
+            
+            <div class="callout info">
+                <div class="callout-title">🎯 학습 목표</div>
+                <p>1. 다형성을 극대화하여 테스트 가능성(Mockability)이 높은 파이프라인 설계 패턴 습득.<br>
+                2. 원격 금융 API 호출 시 레이트 리밋과 장애를 안전하게 극복하는 복원력(Resiliency) 설계.<br>
+                3. 보안 크레덴셜 비노출 및 예외 발생 시 로그 정화(Error Redaction) 기법의 내재화.</p>
+            </div>
+
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-tag">Core Concept</div>
+                    <h3>시스템의 신뢰성은 방어적 코드의 조합이다</h3>
+                    <p>AutoStock의 아키텍처는 네트워크 실패, 크레덴셜 누락, 그리고 이종 가격 데이터 불일치(Disagreement) 등 모든 가능한 예외 상황을 기획 단계의 "상태 사상"으로 간주하고 이를 품질 게이트(Quality Gate)로 걸러냅니다. 결코 오염된 상태가 파이프라인 핵심 비즈니스 로직(랭킹 및 연산)에 전달되지 않도록 원천 격리하는 것이 이 시스템의 핵심 철학입니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section: Architecture -->
+        <section id="architecture">
+            <h2 class="section-title">단방향 파이프라인 아키텍처</h2>
+            <p>배치 및 데이터 수집 아키텍처에서 가장 피해야 할 것은 <strong>'상태의 스파게티화'</strong>와 <strong>'부수 효과(Side Effect)'</strong>입니다. AutoStock은 데이터 유입 단계부터 가공 및 분석 결과 기록 단계까지 엄격한 단방향 데이터 파이프라인을 고수합니다.</p>
+
+            <div class="card">
+                <h3>1. 파이프라인 파티셔닝 (Pipeline Partitioning)</h3>
+                <p>시스템을 크게 세 개의 레이어로 파티셔닝하여 책임을 격리합니다.</p>
+                <ul>
+                    <li><strong>Ingestion Layer</strong>: 포트폴리오(Google Sheets) 및 유니버스(KOSPI/KOSDAQ)의 원시 수집 수행.</li>
+                    <li><strong>Processing Layer</strong>: 가격 불일치 게이트, 재무 데이터 노멀라이저, 완성도 검사.</li>
+                    <li><strong>Calculation & Output Layer</strong>: 평가 엔진 작동, 포트폴리오 랭킹 부여, 리포팅 및 원자적 쓰기.</li>
+                </ul>
+            </div>
+
+            <div class="code-container">
+                <div class="code-lang">Python (src/main.py 구조적 흐름)</div>
+                <pre><code># 1. Ingestion
+portfolio = merge_portfolio_sources(_build_portfolio_source(settings).fetch())
+market_universe = _resolve_market_universe(settings)
+
+# 2. Processing with Fallback & Gate check
+market_data = load_market_data_with_fallback(build_market_data_providers(...))
+_apply_price_cross_check(..., market_data)  # Disagreement gate check
+
+# 3. Calculation & Output
+fundamentals = FundamentalEngine().evaluate(market_data.fundamentals)
+ranked = PortfolioEngine().rank_candidates(fundamentals, macro_status)
+atomic_write_json(data_dir / "explain_logs/explain.json", explain_payload)</code></pre>
+            </div>
+
+            <div class="callout warning">
+                <div class="callout-title">⚠️ 현업 설계 팁: 원자적 쓰기 (Atomic Writes)</div>
+                <p>배치 프로세스에서 파일 기록 도중 예외가 발생하거나 프로세스가 중단되면, 파일이 불완전하게 잘려나가는(Truncation) 파일 오염이 발생합니다. AutoStock은 임시 파일(e.g., <code>.tmp</code>)로 먼저 전체를 완전히 쓴 다음, 성공 시 OS 레벨의 원자적 함수인 <code>os.replace</code>를 호출하여 기존 파일을 덮어씁니다.</p>
+            </div>
+        </section>
+
+        <!-- Section: Patterns -->
+        <section id="patterns">
+            <h2 class="section-title">실전 Python 3대 디자인 패턴</h2>
+            <p>유연성과 재사용성을 달성하기 위한 구체적인 패턴 구현 방식을 학습합니다.</p>
+
+            <div class="card-grid">
+                <!-- Pattern 1 -->
+                <div class="card">
+                    <div class="card-tag">Pattern 1</div>
+                    <h3>전략 패턴 (Strategy Pattern)</h3>
+                    <p>파이썬의 구조적 서브타이핑 도구인 <code class="inline">typing.Protocol</code>을 이용하여 명시적 상속 구조 없이 인터페이스를 정의합니다. 이를 통해 느슨한 결합도를 극대화합니다.</p>
+                    <div class="code-container">
+                        <div class="code-lang">Python</div>
+                        <pre><code>from typing import Protocol
+
+class MarketDataProvider(Protocol):
+    name: str
+    def load(self) -> MarketDataBundle:
+        ...
+
+# 런타임에 Sample, Fixture, PykrxProvider 등을 동적으로 교체 장착
+class PykrxMarketDataProvider:
+    name = "pykrx"
+    def load(self) -> MarketDataBundle:
+        # 실제 API 수집 로직
+        return bundle</code></pre>
+                    </div>
+                </div>
+
+                <!-- Pattern 2 -->
+                <div class="card">
+                    <div class="card-tag">Pattern 2</div>
+                    <h3>프록시/데코레이터 패턴 (Proxy/Decorator Pattern)</h3>
+                    <p>네트워크 호출 횟수를 제어하고, 에러 시 로컬 만료 캐시를 사용하는 메커니즘을 프록시 클래스로 분리했습니다. 기존 로직을 수정하지 않고 캐싱 계층을 주입할 수 있습니다.</p>
+                    <div class="code-container">
+                        <div class="code-lang">Python</div>
+                        <pre><code>class CachedUniverseProvider:
+    def __init__(self, provider: UniverseProvider, max_age_days: int = 7):
+        self.provider = provider
+        self.max_age_days = max_age_days
+
+    def load(self) -> list[UniverseRecord]:
+        # 1. 신선한 캐시가 있으면 반환 (Proxy 캐시 히트)
+        # 2. 없으면 self.provider.load() 호출
+        # 3. 만약 호출 에러 발생 시, 만료된(Stale) 캐시라도 복구하여 반환
+        ...</code></pre>
+                    </div>
+                </div>
+
+                <!-- Pattern 3 -->
+                <div class="card">
+                    <div class="card-tag">Pattern 3</div>
+                    <h3>체인 오브 리스폰시빌리티 (Chain of Responsibility)</h3>
+                    <p>여러 개의 원격 소스 또는 Fallback 체인을 순회하며, 성공하는 최초의 수집기에서 데이터를 취득하고 오류는 리스트에 차곡차곡 누적하는 책임을 전가하는 패턴입니다.</p>
+                </div>
+            </div>
+
+            <!-- Interactive Quiz -->
+            <div class="quiz-container">
+                <div class="quiz-question">Q. Duck Typing 기반의 Protocol(Structural Subtyping)을 사용할 때의 이점 중 잘못된 것은 무엇인가요?</div>
+                <div class="quiz-options">
+                    <div class="quiz-option" onclick="selectQuizOption(this, false, 'Structural Subtyping은 결합도를 낮추고 Mock 객체 작성을 쉽게 만들어 줍니다.')">
+                        <span>1. 정적 타입 검사기(MyPy)의 혜택을 받으면서도 명시적 상속 구조에서 자유롭다.</span>
+                    </div>
+                    <div class="quiz-option" onclick="selectQuizOption(this, true, '옳습니다! Protocol 정의는 파이썬 런타임에 기본 오버헤드를 발생시키지 않으며 정적 검사만 지원합니다. 런타임 가상테이블 조회 오버헤드를 없애기 위한 것은 아닙니다.')">
+                        <span>2. 런타임 성능 상 C++의 가상함수 오버헤드를 완전히 제거하기 위해 필수적이다.</span>
+                    </div>
+                    <div class="quiz-option" onclick="selectQuizOption(this, false, '인터페이스 규약만 준수하면 런타임에 원하는 어떤 라이브러리(FDR, Pykrx 등)든 꽂아 쓸 수 있습니다.')">
+                        <span>3. 외부 라이브러리 래핑 클래스를 작성할 때 코드 침투성을 예방한다.</span>
+                    </div>
+                </div>
+                <div id="quiz-feedback" class="quiz-feedback"></div>
+            </div>
+        </section>
+
+        <!-- Section: Networking -->
+        <section id="networking">
+            <h2 class="section-title">네트워킹 및 회복력 설계</h2>
+            <p>모든 네트워크 API(예: 한국거래소, OpenDART)는 장애가 날 수 있고, 속도 제한(Rate Limit)이 존재합니다. 프로덕션 급 파이프라인이 가져야 할 네트워킹 전략을 알아봅니다.</p>
+
+            <div class="card">
+                <h3>1. API Rate Limiting 대응 (Request Delay)</h3>
+                <p>원격 금융 서버는 단기간 내 많은 요청이 올 경우 IP 차단이나 HTTP 429 Too Many Requests를 반환합니다. 수집 파이프라인 루프 내부에는 설정으로 주입 가능한 지연 시간(<code class="inline">request_delay_seconds</code>)을 슬립 함수와 바인딩해야 합니다.</p>
+                <div class="code-container">
+                    <div class="code-lang">Python</div>
+                    <pre><code>def _sleep_between_provider_requests(delay_seconds: float) -> None:
+    if delay_seconds > 0:
+        time.sleep(delay_seconds)</code></pre>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>2. 데이터 소스 간 정합성 대조 (Cross-check Gate)</h3>
+                <p>동일한 정보를 가리키지만 제공처가 다를 때(예: pykrx 종가 vs FDR 종가), 상호 대조(Cross-Check) 로직을 돌려 값의 괴리율이 일정 범위를 초과하면 예외 경고를 수집하여 랭킹 및 추천 엔진에 제공되지 않도록 퀄리티 게이트를 작동시킵니다.</p>
+            </div>
+        </section>
+
+        <!-- Section: Security -->
+        <section id="security">
+            <h2 class="section-title">보안 및 데이터 퀄리티 게이트</h2>
+            <p>현업 환경에서 가장 민감한 정보 유출 방지 및 잘못된 알고리즘 계산을 방지하기 위한 안전장치들입니다.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>설계 원칙</th>
+                        <th>실제 구현 기법</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>크레덴셜 보호</strong></td>
+                        <td>로컬 설정 파일과 환경 변수에 저장된 토큰/비밀번호가 콘솔이나 로그, 커밋 파일에 절대로 유출되지 않아야 함.</td>
+                        <td><code>redaction.py</code> 내 정규식 기반의 <code>sanitize_error_message</code>를 설계하여 API Key 형태나 패스워드 패턴을 <code>[redacted]</code>로 치환.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>신선도 검사 (Freshness)</strong></td>
+                        <td>수집된 가격 및 재무 데이터가 지나치게 과거 시점의 데이터일 경우 연산에 배제해야 함.</td>
+                        <td><code>price_max_age_days</code>를 설정으로 두고 최종 거래일과 배치 실행일 사이의 간격이 임계치를 초과할 때 <code>stale_price_data</code> 에러 수집.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>추적 가능성 (Lineage)</strong></td>
+                        <td>완성된 보고서 내 각각의 스크리닝 필드 수집 출처가 어디인지 규정할 수 있어야 디버깅이 가능함.</td>
+                        <td>FundamentalRecord 모델 내에 <code>field_provenance</code>(필드별 기원 정보) 사전을 영구 동반 저장.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="code-container">
+                <div class="code-lang">Python (src/utils/redaction.py)</div>
+                <pre><code>import re
+
+def sanitize_error_message(exc: Exception) -> str:
+    message = str(exc)
+    # 1. API key/Token 정규식 치환
+    message = re.sub(r"(key|token|auth|password)=[a-zA-Z0-9_\-]+", r"\1=[redacted]", message, flags=re.IGNORECASE)
+    # 2. URL 경로 축약 마스킹
+    message = re.sub(r"https?://[^\s]+", "[url]", message)
+    return message</code></pre>
+            </div>
+        </section>
+
+        <!-- Section: Action -->
+        <section id="action">
+            <h2 class="section-title">실력 향상 실습 과제</h2>
+            <p>이론을 이해했다면 실제 프로젝트 코드를 개선해 가며 몸으로 체득해야 합니다. 주말 리팩토링 및 개선을 위한 가이드라인입니다.</p>
+
+            <div class="steps">
+                <div class="step-item">
+                    <div class="step-title">과제 1. 데코레이터를 이용한 재시도 기법 장착 (Retry with Exponential Backoff)</div>
+                    <p>현재 캐시 구현 외에, 원격 API 호출 실패 시 지수 백오프(Exponential Backoff)를 이용해 3회 재시도(1초, 2초, 4초 대기)하는 함수 데코레이터를 <code>src/utils/</code> 아래에 설계해 보십시오.</p>
+                </div>
+                <div class="step-item">
+                    <div class="step-title">과제 2. Pydantic 정적 타입 검증 마이그레이션</div>
+                    <p>현재 구현된 수동 시리얼라이즈(<code>Serializable</code> 클래스) 구조를 실제 Pydantic V2(또는 Dataclasses + Type Adapter) 라이브러리로 마이그레이션하여 스키마 준수 체크 및 직렬화 성능을 높여 보십시오.</p>
+                </div>
+                <div class="step-item">
+                    <div class="step-title">과제 3. 텔레메트리 대시보드 구조의 로그 수집</div>
+                    <p>각 수집 프로바이더의 속도, 에러율, 성공 건수를 기록하는 Telemetry 수집 로직을 오케스트레이터인 [main.py](file:///Users/inyong/Coding/AutoStock/src/main.py) 내부에 중앙화하여 런타임 보고서 하단에 대시보드 통계로 출력되도록 수정해 보십시오.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Interactive Navigation Scripts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navItems = document.querySelectorAll('.nav-item');
+            const sections = document.querySelectorAll('section');
+
+            navItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    // Toggle active nav link
+                    navItems.forEach(link => link.classList.remove('active'));
+                    item.classList.add('active');
+
+                    // Toggle active section
+                    const target = item.getAttribute('data-target');
+                    sections.forEach(sec => {
+                        sec.classList.remove('active');
+                        if (sec.id === target) {
+                            sec.classList.add('active');
+                        }
+                    });
+
+                    // Update header title based on navigation
+                    const mainHeaderTitle = document.getElementById('main-header-title');
+                    if (target === 'intro') {
+                        mainHeaderTitle.innerText = "고급 개발자를 위한 아키텍처 & 방법론 가이드";
+                    } else if (target === 'architecture') {
+                        mainHeaderTitle.innerText = "단방향 파이프라인 & 배치 구조 설계";
+                    } else if (target === 'patterns') {
+                        mainHeaderTitle.innerText = "Python 디자인 패턴 구현 & 활용";
+                    } else if (target === 'networking') {
+                        mainHeaderTitle.innerText = "네트워크 신뢰성 & 다중 채널 정합성";
+                    } else if (target === 'security') {
+                        mainHeaderTitle.innerText = "정보 보안 & 엄격한 데이터 품질 게이트";
+                    } else if (target === 'action') {
+                        mainHeaderTitle.innerText = "현업 개발 도약을 위한 단계별 액션플랜";
+                    }
+                });
+            });
+        });
+
+        // Quiz option selector
+        function selectQuizOption(element, isCorrect, feedbackText) {
+            const options = element.parentElement.querySelectorAll('.quiz-option');
+            options.forEach(opt => {
+                opt.classList.remove('selected', 'correct', 'wrong');
+            });
+
+            element.classList.add('selected');
+            const feedbackDiv = document.getElementById('quiz-feedback');
+            feedbackDiv.style.display = 'block';
+
+            if (isCorrect) {
+                element.classList.add('correct');
+                feedbackDiv.style.backgroundColor = 'rgba(52, 211, 153, 0.1)';
+                feedbackDiv.style.border = '1px solid var(--success)';
+                feedbackDiv.style.color = '#34d399';
+                feedbackDiv.innerHTML = '<strong>정답입니다!</strong> ' + feedbackText;
+            } else {
+                element.classList.add('wrong');
+                feedbackDiv.style.backgroundColor = 'rgba(248, 113, 113, 0.1)';
+                feedbackDiv.style.border = '1px solid var(--danger)';
+                feedbackDiv.style.color = '#f87171';
+                feedbackDiv.innerHTML = '<strong>오답입니다.</strong> ' + feedbackText;
+            }
+        }
+    </script>
+</body>
+</html>
