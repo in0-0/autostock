@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-08T13:49:20.002Z",
-  "updatedAt": "2026-06-08T13:49:20.002Z",
+  "updatedAt": "2026-06-08T13:58:27.808Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -11,10 +11,13 @@
       "id": "G001-opendart-taxonomy-regression-hardeni",
       "title": "OpenDART taxonomy regression hardening",
       "objective": "OpenDART taxonomy regression hardening\nAdd deterministic tests near the existing OpenDART tests.\nProve a DART response with status `013` becomes `provider_failed:opendart:dart_status:013` and does not crash.\nInclude the named `_apply_financial_data` propagation test: `test_apply_financial_data_records_dart_status_013_as_provider_failure_exclusion` or an equivalent clear name.\nPreserve existing missing financial input behavior and tests for `missing_*` exclusions.\nDo not reclassify `dart_status:013`, add new providers, add dependencies, or change scoring/strategy.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-08T13:49:20.002Z",
-      "updatedAt": "2026-06-08T13:49:20.002Z"
+      "updatedAt": "2026-06-08T13:58:27.808Z",
+      "startedAt": "2026-06-08T13:55:34.975Z",
+      "completedAt": "2026-06-08T13:58:27.808Z",
+      "evidence": "Added provider-level and named _apply_financial_data regression tests for OpenDART DART status 013 preserving provider_failed:opendart:dart_status:013; targeted pytest passed (4 passed) and full pytest passed (63 passed)."
     },
     {
       "id": "G002-korean-release-readiness-documentati",

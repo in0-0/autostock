@@ -56,7 +56,13 @@ from src.models import (
     RecommendationAction,
     TechnicalRecord,
 )
-from src.main import _apply_financial_data, _build_portfolio_source, _resolve_market_universe, _send_telegram_report
+from src.main import (
+    _apply_financial_data,
+    _build_portfolio_source,
+    _count_exclusion_reasons,
+    _resolve_market_universe,
+    _send_telegram_report,
+)
 from src.reporting import render_markdown_report
 from src.utils.atomic import atomic_write_json
 from src.utils.config import load_settings
@@ -559,6 +565,22 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(result.exclusions["005930"], ["dart_api_key_missing"])
         self.assertIn("dart_api_key_missing", result.warnings)
 
+    def test_dart_financial_provider_records_status_013_as_provider_failure(self) -> None:
+        universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
+
+        class FakeResponse:
+            def json(self) -> dict:
+                return {"status": "013", "message": "조회된 데이터가 없습니다."}
+
+        result = DartFinancialProvider(
+            api_key="key",
+            corp_code_mapping={"005930": "00126380"},
+            api_get=lambda *args, **kwargs: FakeResponse(),
+        ).load_for_universe(universe, market_metrics={"005930": {"per": 9.0}})
+
+        self.assertEqual(result.fundamentals, [])
+        self.assertEqual(result.exclusions["005930"], ["provider_failed:opendart:dart_status:013"])
+
     def test_dart_financial_cache_reuses_rows_without_refetching(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cache = DartFinancialCache(tmp)
@@ -638,6 +660,46 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(bundle.exclusion_reasons["005930"], ["dart_api_key_missing"])
         self.assertEqual(bundle.exclusion_reasons["000660"], ["dart_api_key_missing"])
         self.assertIn("dart_api_key_missing", bundle.stale_warnings)
+
+    def test_apply_financial_data_records_dart_status_013_as_provider_failure_exclusion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_dir = Path(tmp) / "market_cache"
+            cache_dir.mkdir(parents=True)
+            atomic_write_json(
+                cache_dir / "opendart_corp_codes.json",
+                {
+                    "cache_schema_version": 1,
+                    "cache_written_at": datetime.now().isoformat(),
+                    "source": "opendart_corp_code",
+                    "source_risk": "official_api",
+                    "mapping": {"005930": "00126380"},
+                },
+            )
+            settings = {
+                "market_data": {"cache_dir": str(cache_dir)},
+                "financial_data": {"provider": "opendart", "dart_api_key": "key"},
+            }
+            bundle = MarketDataBundle(
+                fundamentals=[],
+                technicals={},
+                macro=load_unavailable_macro(),
+                provider="pykrx",
+                current_prices={},
+                market_metrics={"005930": {"per": 9.0}},
+            )
+            universe = [UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00")]
+
+            class FakeResponse:
+                def json(self) -> dict:
+                    return {"status": "013", "message": "조회된 데이터가 없습니다."}
+
+            with patch("src.collectors.dart.requests.get", return_value=FakeResponse()):
+                _apply_financial_data(settings, "real", universe, bundle)
+
+        expected_reason = "provider_failed:opendart:dart_status:013"
+        self.assertEqual(bundle.fundamentals, [])
+        self.assertEqual(bundle.exclusion_reasons["005930"], [expected_reason])
+        self.assertEqual(_count_exclusion_reasons(bundle.exclusion_reasons), {expected_reason: 1})
 
     def test_apply_financial_data_fetches_each_resolved_universe_record_with_configured_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
