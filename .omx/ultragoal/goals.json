@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-08T13:49:20.002Z",
-  "updatedAt": "2026-06-08T14:00:07.348Z",
+  "updatedAt": "2026-06-08T14:14:54.111Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -35,10 +35,13 @@
       "id": "G003-verification-optional-safe-live-evid",
       "title": "Verification, optional safe live evidence, and final quality gate",
       "objective": "Verification, optional safe live evidence, and final quality gate\nRun `python3 -m pytest`.\nRun `git diff --check` and a non-printing secret-safety scan over `config docs tests src`.\nIf existing ignored local OpenDART credentials/settings are available, run optional full-market or large-universe live verification with cache/delay/rate-limit safeguards and sanitized evidence only; otherwise record a safe skip reason.\nRun the mandatory Ultragoal final cleanup/review gate before marking the aggregate Codex goal complete.\nCommit only intended tracked changes with Conventional Commit + Lore trailers; do not commit generated `data/`, local settings, credential files, tokens, or private portfolio data.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-08T13:49:20.002Z",
-      "updatedAt": "2026-06-08T13:49:20.002Z"
+      "updatedAt": "2026-06-08T14:14:54.111Z",
+      "startedAt": "2026-06-08T14:00:29.043Z",
+      "evidence": "Final G003 gate passed: pytest 63 passed; git diff --cached --check passed; staged secret scan found 0 findings; no generated data/local credential settings staged; sanitized 50-stock OpenDART smoke evidence force-added; code-reviewer APPROVE and architect CLEAR.",
+      "completedAt": "2026-06-08T14:14:54.111Z"
     }
   ],
   "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail."

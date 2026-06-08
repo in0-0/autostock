@@ -1,0 +1,49 @@
+{
+  "story": "G003-verification-optional-safe-live-evidence",
+  "run_date": "2026-06-08 KST",
+  "command_shape": "temporary sanitized YAML + AUTOSTOCK_DART_API_KEY env, python3 -m src.main --settings <tempfile>",
+  "secret_values_printed": false,
+  "google_sheets_live_read": false,
+  "telegram_live_send": false,
+  "telegram_delivery_status": "disabled",
+  "market_data_provider": "pykrx",
+  "macro_status": "CAUTION",
+  "macro_provider": "unavailable",
+  "market_data_warnings": [
+    "universe_provider_failed:pykrx_universe:index -1 is out of bounds for axis 0 with size 0",
+    "macro_data_unavailable:pykrx"
+  ],
+  "universe_snapshot": {
+    "source": "fdr_universe",
+    "source_risk": "package_public_source",
+    "count": 50,
+    "markets": [
+      "KOSPI",
+      "KOSDAQ"
+    ],
+    "collected_at": "2026-06-02T23:46:37.457882"
+  },
+  "exclusion_counts": {
+    "missing_peg_inputs": 31,
+    "provider_failed:opendart:dart_status:013": 19,
+    "missing_net_income_growth_inputs": 14,
+    "missing_roe_inputs": 5,
+    "missing_debt_ratio_inputs": 2,
+    "missing_revenue": 1
+  },
+  "candidate_count": 50,
+  "explain_log_path": "data/explain_logs/explain_2026-06-08.json",
+  "report_path": "data/reports/report_2026-06-08.json",
+  "full_market_live_verified": false,
+  "large_universe_live_verified": false,
+  "large_universe_safeguards": {
+    "max_universe_size": 50,
+    "request_delay_seconds": 0.2,
+    "cache_dir": "data/market_cache",
+    "telegram_disabled": true,
+    "google_sheets_disabled": true
+  },
+  "generated_outputs_committed": false,
+  "fdr_cache_backed_50_stock_opendart_smoke_verified": true,
+  "scope_note": "OpenDART calls were live; the 50-stock universe snapshot was FDR/cache-backed and not a full-market all-symbol verification."
+}

@@ -24,9 +24,8 @@ log가 같은 원인을 재현 가능하게 집계하기 위한 기계 판별용
 
 - 결정적 테스트 보강: 완료.
 - 전체 회귀 테스트: 통과.
-- 전체 시장 또는 large-universe OpenDART live coverage: 아직 완료로 표시하지 않는다.
-  기존 비추적 로컬 credential/settings가 있고 cache, delay, rate-limit 조건이 안전할 때만
-  sanitized evidence로 별도 기록한다.
+- 50종목 OpenDART live smoke: 2026-06-08 KST에 FDR/cache-backed 50종목 universe, `request_delay_seconds=0.2`, Telegram/Google Sheets disabled 조건으로 완료했다. 결과는 `provider_failed:opendart:dart_status:013` 19건과 재무 입력 부족 exclusion을 sanitized evidence로 기록했다.
+- 전체 시장 전체 종목 live coverage: 아직 완료로 표시하지 않는다. 별도 운영 검증으로 남긴다.
 
 ## 운영자 참고
 
