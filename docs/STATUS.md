@@ -1,7 +1,7 @@
 # 프로젝트 상태
 
-**마지막 갱신:** 2026-06-08
-**상태:** v0.2.0 서비스 스펙 구현 검증 중
+**마지막 갱신:** 2026-06-09
+**상태:** v0.2.0 릴리스 마무리 증거 정리 중
 **현재 버전:** v0.1.0 (개발 중)
 
 ## 현재 제품 정의
@@ -33,7 +33,7 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 | Google Sheets 입력 | 구현됨 | 읽기 전용 parser, CSV/TSV fixture, source-neutral portfolio boundary |
 | 포트폴리오 병합 | 구현됨 | 같은 티커의 행을 통합하고 source warning을 기록 |
 | 가격 데이터 | 구현 보강 / bounded smoke 통과 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry, bounded real smoke에서 pykrx 가격 provider 완료 및 FDR universe fallback 확인 |
-| 재무제표 데이터 | 구현됨 / 50종목 OpenDART smoke 통과 | OpenDART 정규화 provider, corp-code cache, field provenance, missing-field exclusion 구현; DART `status:013`은 원시 taxonomy `provider_failed:opendart:dart_status:013`로 유지하며, 회귀 테스트로 provider 단계와 `_apply_financial_data` 전파를 고정했다. 2026-06-08 KST에 FDR/cache-backed 50종목 universe로 OpenDART live smoke를 실행해 동일 taxonomy가 sanitized evidence로 확인됐다 |
+| 재무제표 데이터 | 구현됨 / OpenDART full listed-company evidence 확인 | OpenDART 정규화 provider, corp-code cache, field provenance, missing-field exclusion 구현. DART `status:013`은 원시 taxonomy `provider_failed:opendart:dart_status:013`로 유지하며 회귀 테스트로 전파를 고정했다. 50종목 smoke와 OpenDART corp-code fallback 3,967건 evidence를 확인했다 |
 | 후보 리포트 | 구현됨 | 근거, 리스크, provider 출처, 점수, 점수 입력값 기록 |
 | 매크로 정책 | 구현됨 | `RISK_OFF` 차단, `CAUTION` 감점/리스크 표시, 매크로 데이터 부족 컨텍스트 기록 |
 | Telegram | 구현됨 / live send 보류 | Markdown 렌더링, 실제 전송 시도, `sent`/`failed:<redacted>`/`disabled` 상태 기록; 2026-06-03 smoke에서는 credential 제거 상태로 `disabled` 확인 |
@@ -44,7 +44,7 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 | 우선순위 | 항목 | 이유 |
 |----------|------|------|
-| P0 | OpenDART full-market 운영 검증 | `dart_status:013`은 코드 오류가 아니라 OpenDART 응답/데이터 coverage 이슈로 해석하도록 문서화하고 회귀 테스트로 raw taxonomy를 고정했다. FDR/cache-backed 50종목 OpenDART smoke는 통과했으며, 전체 시장 전체 종목 검증은 별도 운영 검증으로 남긴다 |
+| P0 | OpenDART full-market 운영 증거 정리 | 50종목 smoke와 OpenDART corp-code fallback universe 3,967건 full listed-company validation을 완료했다. `dart_status:013`은 coverage 이슈로 해석하고 raw taxonomy는 회귀 테스트로 고정했다. Public universe provider full-load 실패는 운영 잔여 리스크로 기록한다 |
 | P1 | 실제 Google Sheets/Telegram credential smoke | 이번 pass의 비목표다. 로컬 비추적 credential이 준비된 뒤 별도 test sheet/test chat으로 확인한다 |
 | P2 | sample/fixture 설정과 개인 운영 설정 분리 | 실데이터 실행에서 샘플 대체를 방지해야 함 |
 
@@ -58,12 +58,38 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - 후보 순위는 재현 가능한 `review_score`, `score_policy_version`, `score_inputs`를 explain log와 리포트에 남긴다.
 - Telegram 전송 상태는 실행 산출물에 `disabled`, `sent`, `failed:<redacted>` 중 하나로 남긴다.
 - KOSPI/KOSDAQ universe provider, OpenDART 재무 정규화, provider별 cache/freshness 정책, exclusion count 리포팅을 추가했다.
-- 2026-06-08 KST에 OpenDART DART `status:013` 회귀 테스트를 추가해 provider 결과와 `_apply_financial_data` 전파가 모두 `provider_failed:opendart:dart_status:013`를 유지하도록 고정했다. 이 값은 기계 판별용 원시 taxonomy이며, 사용자 문서에서는 “OpenDART가 해당 종목/기간 재무제표 데이터를 제공하지 않음”으로 해석한다.
-- 2026-06-08 KST에 Telegram/Google Sheets live를 끈 임시 sanitized 설정으로 `max_universe_size=50`, `request_delay_seconds=0.2` OpenDART smoke를 실행했다. 결과는 pykrx 가격 provider, FDR/cache-backed universe 50종목, Telegram `disabled`, `provider_failed:opendart:dart_status:013` 19건 및 재무 입력 부족 exclusion 기록이었다. 전체 시장 전체 종목 검증은 수행하지 않았다.
+- 2026-06-08 KST에 OpenDART DART `status:013` 회귀 테스트를 추가했다.
+  provider 결과와 `_apply_financial_data` 전파는 모두
+  `provider_failed:opendart:dart_status:013`를 유지한다.
+  이 값은 기계 판별용 원시 taxonomy이며, 사용자 문서에서는
+  “OpenDART가 해당 종목/기간 재무제표 데이터를 제공하지 않음”으로 해석한다.
+- 2026-06-08 KST에 Telegram/Google Sheets live를 끈 임시 sanitized 설정으로
+  `max_universe_size=50`, `request_delay_seconds=0.2` OpenDART smoke를 실행했다.
+  결과는 pykrx 가격 provider, FDR/cache-backed universe 50종목, Telegram `disabled`,
+  `provider_failed:opendart:dart_status:013` 19건 및 재무 입력 부족 exclusion 기록이었다.
+- 2026-06-09 KST에 secret 값을 출력하지 않고 Google Sheets/Telegram live를 실행하지 않는
+  조건으로 OpenDART full listed-company validation을 수행했다.
+  FDR full-universe load는 HTTP 404, pykrx full-universe load는 empty-index 오류로 실패해
+  OpenDART corp-code cache fallback 3,967건을 universe로 사용했다.
+  DART financial API는 3,936회 호출했고 각 호출은 0.2초 이상 지연했다.
+  결과는 `provider_failed:opendart:dart_status:013` 1,754건,
+  `missing_peg_inputs` 2,213건 등 stable exclusion taxonomy였으며,
+  코드/taxonomy propagation bug는 발견하지 않았다.
 
 - 2026-06-03 KST에 `max_universe_size=5` provider smoke를 비추적 로컬 설정(`config/settings.provider-smoke.local`)으로 실행했다. 초기 env-only run은 OpenDART key를 찾지 못했지만, 이후 `config/settings.local.yaml`의 로컬 YAML key를 값 출력 없이 반영해 재실행했다. 보정 run 결과는 pykrx 가격 provider 완료, FDR universe fallback 5종목, 매크로 데이터 부족에 따른 `CAUTION`, Telegram `disabled`, OpenDART credential path 확인, `dart_status:013`/재무 입력 부족 exclusion 기록이었다.
 - Google Sheets live read와 Telegram live send는 이번 release-confidence pass의 비목표로 남겼고, 실제 credential 없이 실행하지 않았다.
 
 ## 다음 작업
 
-v0.2.0의 주요 데이터-source 결정은 pykrx/FDR + OpenDART 경로로 구현됐고, bounded real smoke에서 pykrx 가격 provider, FDR universe fallback, OpenDART credential path가 확인됐다. `dart_status:013`은 provider/data coverage 관점의 exclusion으로 해석하고 raw taxonomy는 `provider_failed:opendart:dart_status:013` 그대로 유지한다. 결정적 회귀 테스트와 문서 보강, FDR/cache-backed 50종목 OpenDART smoke는 완료됐지만, 전체 시장 전체 종목 live coverage는 별도 운영 검증으로 남긴다. 실제 Google Sheets 읽기와 Telegram test chat 발송은 이번 pass에서는 제외한 P1 검증으로 남긴다. 운영 스케줄, 재시도, runbook은 v0.3.0 범위로 넘긴다.
+v0.2.0의 주요 데이터-source 결정은 pykrx/FDR + OpenDART 경로로 구현됐다.
+bounded real smoke에서 pykrx 가격 provider, FDR universe fallback,
+OpenDART credential path가 확인됐다. `dart_status:013`은 provider/data coverage
+관점의 exclusion으로 해석하고 raw taxonomy는
+`provider_failed:opendart:dart_status:013` 그대로 유지한다.
+
+결정적 회귀 테스트, 문서 보강, FDR/cache-backed 50종목 OpenDART smoke,
+OpenDART corp-code fallback universe 3,967건 full listed-company validation은 완료됐다.
+다만 public universe provider full-load 실패(FDR HTTP 404, pykrx empty-index)는
+운영 잔여 리스크로 남긴다. 실제 Google Sheets 읽기와 Telegram test chat 발송은
+이번 pass에서는 제외한 P1 검증으로 남긴다. 운영 스케줄, 재시도, runbook은
+v0.3.0 범위로 넘긴다.
