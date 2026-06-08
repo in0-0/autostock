@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-08T13:49:20.002Z",
-  "updatedAt": "2026-06-08T13:58:27.808Z",
+  "updatedAt": "2026-06-08T14:00:07.348Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -23,10 +23,13 @@
       "id": "G002-korean-release-readiness-documentati",
       "title": "Korean release-readiness documentation update",
       "objective": "Korean release-readiness documentation update\nUpdate Korean project docs under `docs/` to explain the v0.2 P0 interpretation after hardening.\nKeep raw machine taxonomy stable; explain human interpretation in docs.\nIf live verification is skipped, say deterministic hardening is complete but full live coverage remains unverified.\nDo not run or document Google Sheets live read, Telegram live send, broker/order/rebalancing scope, or secret values.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-08T13:49:20.002Z",
-      "updatedAt": "2026-06-08T13:49:20.002Z"
+      "updatedAt": "2026-06-08T14:00:07.348Z",
+      "startedAt": "2026-06-08T13:59:03.904Z",
+      "completedAt": "2026-06-08T14:00:07.348Z",
+      "evidence": "Updated Korean docs/STATUS.md, docs/ROADMAP.md, and docs/qa/OPENDART_COVERAGE_HARDENING_2026-06-08.md to explain DART status 013 as stable raw taxonomy provider_failed:opendart:dart_status:013, preserve non-goals, and state full-market live coverage remains unverified until safe optional evidence; git diff --check passed."
     },
     {
       "id": "G003-verification-optional-safe-live-evid",

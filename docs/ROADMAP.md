@@ -1,6 +1,6 @@
 # 로드맵
 
-**마지막 갱신:** 2026-06-03
+**마지막 갱신:** 2026-06-08
 **현재 기준:** Google Sheets 기반 주말 매수 후보 리뷰 서비스
 **현재 버전:** v0.1.0 (개발 중)
 **다음 버전:** v0.2.0 (주말 후보 리뷰 MVP)
@@ -58,7 +58,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 - [x] KOSPI/KOSDAQ 유니버스와 라이브 재무제표 데이터 소스 결정.
 - [x] bounded real smoke에서 pykrx 가격 provider와 FDR universe fallback 확인.
 - [x] OpenDART API key 기반 bounded smoke에서 credential path와 exclusion 기록 확인.
-- [ ] OpenDART `dart_status:013`/재무 입력 부족 coverage 해석 보강.
+- [x] OpenDART `dart_status:013`/재무 입력 부족 coverage 해석 보강과 raw taxonomy 회귀 테스트 고정.
+- [ ] OpenDART full-market 또는 large-universe live coverage는 기존 비추적 로컬 credential/settings가 있고 cache/delay/rate-limit 조건이 안전할 때만 sanitized evidence로 확인.
 - [x] 데이터 부족/제외 사유가 explain log에 기록됨.
 - [x] `RISK_OFF`에서 후보가 전역 차단되고, `CAUTION`에서 감점 또는 하향 표시가 검증됨.
 - [x] Telegram 리포트가 후보 목록 또는 후보 없음 사유, 리스크 경고, 생성 시각을 포함함.
@@ -77,7 +78,7 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 ### 데이터 소스
 - KOSPI/KOSDAQ 전체 종목 유니버스 provider bounded smoke 결과 보강: pykrx universe 경고 발생 시 FDR fallback 근거와 stale/cache 정책을 운영 문서에 연결.
-- OpenDART 재무제표 provider는 구현됐으며, 로컬 YAML key 기반 bounded smoke에서 `dart_api_key_missing` 없이 exclusion 기록을 확인했다. 남은 작업은 `dart_status:013`과 재무 입력 부족 결과의 coverage 해석 보강이다.
+- OpenDART 재무제표 provider는 구현됐으며, 로컬 YAML key 기반 bounded smoke에서 `dart_api_key_missing` 없이 exclusion 기록을 확인했다. `dart_status:013`은 `provider_failed:opendart:dart_status:013` raw taxonomy로 유지하고, 사용자 문서에서는 해당 종목/기간의 OpenDART 재무제표 미제공 또는 coverage 공백으로 해석한다. 전체 시장 live coverage는 별도 안전 조건이 맞을 때만 검증한다.
 - 가격/거래량 provider fallback의 stale-data 정책 강화.
 - provider별 출처, 실패, 캐시 사용 여부를 explain log에 일관되게 기록.
 
