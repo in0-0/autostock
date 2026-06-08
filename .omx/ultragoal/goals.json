@@ -1,47 +1,47 @@
 {
   "version": 1,
-  "createdAt": "2026-06-08T13:49:20.002Z",
-  "updatedAt": "2026-06-08T14:14:54.111Z",
+  "createdAt": "2026-06-08T23:19:33.500Z",
+  "updatedAt": "2026-06-08T23:19:33.500Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
   "codexGoalMode": "aggregate",
   "goals": [
     {
-      "id": "G001-opendart-taxonomy-regression-hardeni",
-      "title": "OpenDART taxonomy regression hardening",
-      "objective": "OpenDART taxonomy regression hardening\nAdd deterministic tests near the existing OpenDART tests.\nProve a DART response with status `013` becomes `provider_failed:opendart:dart_status:013` and does not crash.\nInclude the named `_apply_financial_data` propagation test: `test_apply_financial_data_records_dart_status_013_as_provider_failure_exclusion` or an equivalent clear name.\nPreserve existing missing financial input behavior and tests for `missing_*` exclusions.\nDo not reclassify `dart_status:013`, add new providers, add dependencies, or change scoring/strategy.",
-      "status": "complete",
-      "attempt": 1,
-      "createdAt": "2026-06-08T13:49:20.002Z",
-      "updatedAt": "2026-06-08T13:58:27.808Z",
-      "startedAt": "2026-06-08T13:55:34.975Z",
-      "completedAt": "2026-06-08T13:58:27.808Z",
-      "evidence": "Added provider-level and named _apply_financial_data regression tests for OpenDART DART status 013 preserving provider_failed:opendart:dart_status:013; targeted pytest passed (4 passed) and full pytest passed (63 passed)."
+      "id": "G001-opendart-full-market-validation-pref",
+      "title": "OpenDART full-market validation preflight and safe run",
+      "objective": "OpenDART full-market validation preflight and safe run\nInspect existing local untracked settings/environment without printing secret values.\nAttempt OpenDART full-market validation only when safe local credentials/settings are already available.\nUse reasonable safeguards: cache, request delay/rate-limit awareness, bounded logs, and sanitized summaries.\nIf credentials/settings are unavailable, record a no-secret blocker/residual risk instead of asking for secrets.\nDo not run Google Sheets live read, Telegram live send, v0.3 scheduling/runbook/retry work, broker/order/rebalancing work, release tag, or deployment.",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-06-08T23:19:33.500Z",
+      "updatedAt": "2026-06-08T23:19:33.500Z"
     },
     {
-      "id": "G002-korean-release-readiness-documentati",
-      "title": "Korean release-readiness documentation update",
-      "objective": "Korean release-readiness documentation update\nUpdate Korean project docs under `docs/` to explain the v0.2 P0 interpretation after hardening.\nKeep raw machine taxonomy stable; explain human interpretation in docs.\nIf live verification is skipped, say deterministic hardening is complete but full live coverage remains unverified.\nDo not run or document Google Sheets live read, Telegram live send, broker/order/rebalancing scope, or secret values.",
-      "status": "complete",
-      "attempt": 1,
-      "createdAt": "2026-06-08T13:49:20.002Z",
-      "updatedAt": "2026-06-08T14:00:07.348Z",
-      "startedAt": "2026-06-08T13:59:03.904Z",
-      "completedAt": "2026-06-08T14:00:07.348Z",
-      "evidence": "Updated Korean docs/STATUS.md, docs/ROADMAP.md, and docs/qa/OPENDART_COVERAGE_HARDENING_2026-06-08.md to explain DART status 013 as stable raw taxonomy provider_failed:opendart:dart_status:013, preserve non-goals, and state full-market live coverage remains unverified until safe optional evidence; git diff --check passed."
+      "id": "G002-evidence-interpretation-and-optional",
+      "title": "Evidence interpretation and optional code/test hardening",
+      "objective": "Evidence interpretation and optional code/test hardening\nReview validation output for `dart_status:013`, missing financial fields, rate-limit symptoms, API coverage gaps, or taxonomy propagation bugs.\nTreat consistent OpenDART coverage gaps as documentable residual risk, not v0.2 blockers.\nIf a real code/taxonomy propagation bug is found, fix it only within existing provider/reporting boundaries and add or adjust tests.\nPreserve `provider_failed:opendart:dart_status:013` and existing `missing_*` exclusion behavior; do not change scoring/strategy or add providers/dependencies.",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-06-08T23:19:33.500Z",
+      "updatedAt": "2026-06-08T23:19:33.500Z"
     },
     {
-      "id": "G003-verification-optional-safe-live-evid",
-      "title": "Verification, optional safe live evidence, and final quality gate",
-      "objective": "Verification, optional safe live evidence, and final quality gate\nRun `python3 -m pytest`.\nRun `git diff --check` and a non-printing secret-safety scan over `config docs tests src`.\nIf existing ignored local OpenDART credentials/settings are available, run optional full-market or large-universe live verification with cache/delay/rate-limit safeguards and sanitized evidence only; otherwise record a safe skip reason.\nRun the mandatory Ultragoal final cleanup/review gate before marking the aggregate Codex goal complete.\nCommit only intended tracked changes with Conventional Commit + Lore trailers; do not commit generated `data/`, local settings, credential files, tokens, or private portfolio data.",
-      "status": "complete",
-      "attempt": 1,
-      "createdAt": "2026-06-08T13:49:20.002Z",
-      "updatedAt": "2026-06-08T14:14:54.111Z",
-      "startedAt": "2026-06-08T14:00:29.043Z",
-      "evidence": "Final G003 gate passed: pytest 63 passed; git diff --cached --check passed; staged secret scan found 0 findings; no generated data/local credential settings staged; sanitized 50-stock OpenDART smoke evidence force-added; code-reviewer APPROVE and architect CLEAR.",
-      "completedAt": "2026-06-08T14:14:54.111Z"
+      "id": "G003-korean-v0-2-release-closure-document",
+      "title": "Korean v0.2 release-closure documentation",
+      "objective": "Korean v0.2 release-closure documentation\nUpdate Korean project docs under `docs/` to summarize sanitized full-market evidence or the safe-skip blocker.\nExplain whether OpenDART coverage gaps such as `dart_status:013` block v0.2; the default interview decision is residual risk when code/tests/taxonomy are consistent.\nKeep current product scope clear: Google Sheets-based weekend candidate review only, no automatic orders/buy sizing/target weights/auto-rebalancing/current broker integration.\nDo not include API keys, credential paths/values, spreadsheet IDs, Telegram tokens/chat IDs, account identifiers, private portfolio rows, or generated runtime data.",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-06-08T23:19:33.500Z",
+      "updatedAt": "2026-06-08T23:19:33.500Z"
+    },
+    {
+      "id": "G004-final-verification-cleanup-review-ga",
+      "title": "Final verification, cleanup/review gate, and safe commit",
+      "objective": "Final verification, cleanup/review gate, and safe commit\nRun `python3 -m pytest` after any code/test changes; run the smallest relevant validation for docs-only changes.\nRun git diff checks and a non-printing secret-safety review over intended tracked changes.\nRun the mandatory Ultragoal final cleanup/review gate before marking the aggregate goal complete.\nStage and commit only task-related tracked changes with Conventional Commit plus Lore trailers.\nDo not commit generated `data/`, local settings, credential files, tokens, private portfolio data, unrelated existing changes, or release/deployment artifacts.",
+      "status": "pending",
+      "attempt": 0,
+      "createdAt": "2026-06-08T23:19:33.500Z",
+      "updatedAt": "2026-06-08T23:19:33.500Z"
     }
   ],
   "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail."
