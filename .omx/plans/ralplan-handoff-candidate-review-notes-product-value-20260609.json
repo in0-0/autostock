@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "workflow": "ralplan",
+  "slug": "candidate-review-notes-product-value",
+  "created_at": "2026-06-09",
+  "source_deep_interview_spec": ".omx/specs/deep-interview-repo-service-completeness-audit.md",
+  "planning_artifacts": {
+    "prd": ".omx/plans/prd-candidate-review-notes-product-value-20260609.md",
+    "test_spec": ".omx/plans/test-spec-candidate-review-notes-product-value-20260609.md"
+  },
+  "ralplan_architect_review": {
+    "path": ".omx/plans/ralplan-architect-review-candidate-review-notes-20260609.md",
+    "verdict": "APPROVE",
+    "order": 1
+  },
+  "ralplan_critic_review": {
+    "path": ".omx/plans/ralplan-critic-review-candidate-review-notes-20260609.md",
+    "verdict": "APPROVE",
+    "order": 2
+  },
+  "ralplan_consensus_gate": {
+    "complete": true,
+    "required_order": "architect_then_critic",
+    "verified_order": true,
+    "critic_approval_after_architect": true
+  },
+  "recommended_follow_up": {
+    "default": "$ultragoal create-goals --brief-file .omx/plans/prd-candidate-review-notes-product-value-20260609.md",
+    "parallel_option": "$team .omx/plans/prd-candidate-review-notes-product-value-20260609.md after Ultragoal story boundaries are created",
+    "ralph_fallback": "Use only if explicitly selected for persistent single-owner verification/fix loop"
+  },
+  "binding_non_goals": [
+    "no automatic orders",
+    "no buy sizing",
+    "no target weights",
+    "no auto rebalancing",
+    "no live credential smoke",
+    "no scheduler/runbook/retry implementation in this pass",
+    "no core scoring algorithm change in first pass"
+  ],
+  "execution_preflight_blockers": [
+    "Remove/guard dirty debug print in src/main.py: print(api_key)",
+    "Remove/guard dirty debug print in src/reporting.py: print(candidate)"
+  ]
+}
