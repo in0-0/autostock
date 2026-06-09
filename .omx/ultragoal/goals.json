@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-09T14:33:12.951Z",
-  "updatedAt": "2026-06-09T23:32:15.947Z",
+  "updatedAt": "2026-06-09T23:37:07.655Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -71,10 +71,13 @@
       "id": "G006-final-verification-cleanup-and-indep",
       "title": "Final verification, cleanup, and independent review gate: Run the man...",
       "objective": "Final verification, cleanup, and independent review gate: Run the mandatory Ultragoal final gate on changed files only: targeted verification, ai-slop-cleaner no-op or cleanup report, rerun verification, independent code-reviewer approval, independent architect clear status, secret/forbidden-language scan, and final checkpoint evidence. Do not call Codex `update_goal` until this final gate is clean. If review is not clean, record review blockers instead of marking the aggregate goal complete.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-09T14:33:12.951Z",
-      "updatedAt": "2026-06-09T14:33:12.951Z"
+      "updatedAt": "2026-06-09T23:37:07.655Z",
+      "startedAt": "2026-06-09T23:32:31.887Z",
+      "evidence": "Final Ultragoal gate passed: pre/post-cleaner pytest 67 passed, git diff --check, py_compile, source/doc scans; ai-slop-cleaner passed/no-op; independent code-reviewer APPROVE and architect CLEAR with distinct subagent evidence; Codex aggregate goal marked complete; evidence .omx/ultragoal/evidence/G006-final-verification.md and quality gate .omx/ultragoal/evidence/G006-quality-gate.json.",
+      "completedAt": "2026-06-09T23:37:07.655Z"
     }
   ],
   "codexObjective": "Complete the durable ultragoal plan in .omx/ultragoal/goals.json, including later accepted/appended stories, under the original brief constraints; use .omx/ultragoal/ledger.jsonl as the audit trail."
