@@ -1,18 +1,18 @@
 # 프로젝트 상태
 
-**마지막 갱신:** 2026-06-09
-**상태:** v0.2.0 릴리스 마무리 증거 정리 중
+**마지막 갱신:** 2026-06-10
+**상태:** v0.2.0 후보 검토 메모 구현 및 최종 검증 중
 **현재 버전:** v0.1.0 (개발 중)
 
 ## 현재 제품 정의
 
 AutoStock은 Google Sheets에 있는 개인 포트폴리오를 주말마다 점검하고,
 KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충분한 기업을
-분석해 매수 후보 리뷰 목록을 만들며, 결과를 Telegram으로 전달하는 로컬 우선
+분석해 후보 검토 목록과 후보별 확인 메모를 만들며, 결과를 Telegram으로 전달하는 로컬 우선
 배치 서비스다.
 
-현재 단계에서는 후보 목록만 제공한다. 자동 주문, 매수 수량 계산, 목표 비중,
-자동 리밸런싱, 실증권사 API 연결은 하지 않는다.
+현재 단계에서는 후보 목록과 검토 메모만 제공한다. 증권사 주문, 수량 산정,
+비중 추천, 실증권사 API 연결은 하지 않는다.
 
 ## 버전 계획
 
@@ -34,11 +34,11 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 | 포트폴리오 병합 | 구현됨 | 같은 티커의 행을 통합하고 source warning을 기록 |
 | 가격 데이터 | 구현 보강 / bounded smoke 통과 | sample/fixture/real 모드, pykrx/FDR fallback, cache/telemetry, bounded real smoke에서 pykrx 가격 provider 완료 및 FDR universe fallback 확인 |
 | 재무제표 데이터 | 구현됨 / OpenDART full listed-company evidence 확인 | OpenDART 정규화 provider, corp-code cache, field provenance, missing-field exclusion 구현. DART `status:013`은 원시 taxonomy `provider_failed:opendart:dart_status:013`로 유지하며 회귀 테스트로 전파를 고정했다. 50종목 smoke와 OpenDART corp-code fallback 3,967건 evidence를 확인했다 |
-| 후보 리포트 | 구현됨 | 근거, 리스크, provider 출처, 점수, 점수 입력값 기록 |
+| 후보 리포트 | 구현됨 | 근거, 리스크, provider 출처, 점수, 점수 입력값, 구조화 검토 메모 기록 |
 | 매크로 정책 | 구현됨 | `RISK_OFF` 차단, `CAUTION` 감점/리스크 표시, 매크로 데이터 부족 컨텍스트 기록 |
 | Telegram | 구현됨 / live send 보류 | Markdown 렌더링, 실제 전송 시도, `sent`/`failed:<redacted>`/`disabled` 상태 기록; 2026-06-03 smoke에서는 credential 제거 상태로 `disabled` 확인 |
 | 증권사 연동 | 현재 범위 밖 | mock connector는 기준선/호환 경로로만 유지 |
-| 런타임 출력 | 구현됨 | `data/portfolio_state.json`, `data/reports/`, `data/explain_logs/` |
+| 런타임 출력 | 구현됨 | `data/portfolio_state.json`, `data/reports/`, `data/explain_logs/`; report/explain에 후보별 `review_note` 포함 |
 
 ## 열린 이슈
 
@@ -50,8 +50,15 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 ## 최근 변경
 
+- 2026-06-10 KST에 후보별 구조화 검토 메모를 추가했다.
+  각 메모는 검토 이유, 보류/확인 사유, 다음 확인, 데이터 신뢰도, source/generated context를 포함한다.
+  메모는 Markdown 리포트뿐 아니라 report JSON의 `review_notes`와 explain-log item의 `review_note`에 저장된다.
+  첫 구현은 후보군 외 near-miss 개별 메모가 아니라 주요 제외 사유 상위 항목만 요약하는 정책으로 고정했다.
+- 후보 검토 메모 추가는 `peg_macro_v1` 점수 산식과 순위 의미를 바꾸지 않았다.
+  회귀 테스트는 후보 메모 생성, report/explain 구조화 필드, Telegram Markdown escaping, 후보 없음/제외 사유 안내,
+  debug 출력 제거와 현재 단계 밖 표현 미노출을 검증한다.
 - 서비스 정체성을 Google Sheets 기반 주말 후보 리뷰 서비스로 정리했다.
-- 현재 단계의 비목표를 명확히 했다: 실증권사 API, 자동 주문, 수량 계산, 목표 비중, 자동 리밸런싱 제외.
+- 현재 단계의 비목표를 명확히 했다: 실증권사 API, 증권사 주문, 수량 산정, 비중 추천 제외.
 - v0.2.0 범위를 KOSPI/KOSDAQ 전체 후보 탐색, 재무제표/가격 데이터 완성도, explain log, Telegram 검증 중심으로 재정렬했다.
 - 기존 mock broker 기반 흐름은 제품 중심이 아니라 로컬 회귀 테스트와 호환 기준선으로 재해석했다.
 - 매크로 데이터 부족은 샘플 대체나 전역 위험 차단이 아니라 `CAUTION` 컨텍스트로 기록하고 후보 점수에 감점한다.
@@ -81,7 +88,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 ## 다음 작업
 
-v0.2.0의 주요 데이터-source 결정은 pykrx/FDR + OpenDART 경로로 구현됐다.
+v0.2.0의 주요 데이터-source 결정과 후보 검토 메모 경로는 구현됐다.
+pykrx/FDR + OpenDART 경로를 사용하고, 후보별 확인 메모를 report/explain 아티팩트에 남긴다.
 bounded real smoke에서 pykrx 가격 provider, FDR universe fallback,
 OpenDART credential path가 확인됐다. `dart_status:013`은 provider/data coverage
 관점의 exclusion으로 해석하고 raw taxonomy는
@@ -91,5 +99,5 @@ OpenDART credential path가 확인됐다. `dart_status:013`은 provider/data cov
 OpenDART corp-code fallback universe 3,967건 full listed-company validation은 완료됐다.
 다만 public universe provider full-load 실패(FDR HTTP 404, pykrx empty-index)는
 운영 잔여 리스크로 남긴다. 실제 Google Sheets 읽기와 Telegram test chat 발송은
-이번 pass에서는 제외한 P1 검증으로 남긴다. 운영 스케줄, 재시도, runbook은
-v0.3.0 범위로 넘긴다.
+이번 pass에서는 제외한 P1 검증으로 남긴다. 남은 v0.2 작업은 최종 QA/리뷰 게이트와
+문서/아티팩트 정리이며, 운영 스케줄, 재시도, runbook은 v0.3.0 범위로 넘긴다.

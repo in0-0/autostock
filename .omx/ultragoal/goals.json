@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-09T14:33:12.951Z",
-  "updatedAt": "2026-06-09T23:30:09.503Z",
+  "updatedAt": "2026-06-09T23:32:15.947Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -59,10 +59,13 @@
       "id": "G005-korean-documentation-alignment-after",
       "title": "Korean documentation alignment: After behavior and tests exist, updat...",
       "objective": "Korean documentation alignment: After behavior and tests exist, update Korean project-facing docs as needed, especially README and relevant status/roadmap docs, so the product direction is candidate review notes for a Google Sheets weekend review service rather than broker connector/order/rebalancing implementation. Preserve non-goals and do not include secrets, credential paths/values, spreadsheet IDs, Telegram tokens/chat IDs, account identifiers, private portfolio rows, or generated runtime data.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-09T14:33:12.951Z",
-      "updatedAt": "2026-06-09T14:33:12.951Z"
+      "updatedAt": "2026-06-09T23:32:15.947Z",
+      "startedAt": "2026-06-09T23:30:24.460Z",
+      "completedAt": "2026-06-09T23:32:15.947Z",
+      "evidence": "Aligned Korean README/STATUS/ROADMAP with Google Sheets weekend candidate review-note service direction; removed stale broker/order/rebalancing next-step framing; git diff --check and documentation forbidden phrase/secret-key scans passed; evidence .omx/ultragoal/evidence/G005-korean-documentation-alignment.md."
     },
     {
       "id": "G006-final-verification-cleanup-and-indep",
