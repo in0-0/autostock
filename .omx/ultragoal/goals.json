@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-09T14:33:12.951Z",
-  "updatedAt": "2026-06-09T14:33:12.951Z",
+  "updatedAt": "2026-06-09T23:22:47.604Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -11,10 +11,13 @@
       "id": "G001-safety-cleanup-and-regression-guard",
       "title": "Safety cleanup and regression guard: Remove or guard the current dirt...",
       "objective": "Safety cleanup and regression guard: Remove or guard the current dirty debug prints `print(api_key)` in `src/main.py` and `print(candidate)` in `src/reporting.py`; add a targeted regression/static assertion or documented verification that changed source does not contain those debug leaks, secret key names in unsafe output paths, or forbidden buy/order/rebalancing instruction language. This story must complete before any smoke run that could touch local credentials or private portfolio data.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-09T14:33:12.951Z",
-      "updatedAt": "2026-06-09T14:33:12.951Z"
+      "updatedAt": "2026-06-09T23:22:47.604Z",
+      "startedAt": "2026-06-09T23:22:06.326Z",
+      "completedAt": "2026-06-09T23:22:47.604Z",
+      "evidence": "Removed unsafe print(api_key)/print(candidate) debug paths; rg scan confirmed no forbidden debug prints; no forbidden order/sizing instruction language in changed source files; evidence .omx/ultragoal/evidence/G001-safety-cleanup.md."
     },
     {
       "id": "G002-candidate-review-note-schema-and-bui",
