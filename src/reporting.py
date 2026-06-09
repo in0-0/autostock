@@ -69,9 +69,19 @@ def render_markdown_report(
     lines.append("--------------------------------")
     if ranked_candidates:
         for candidate in ranked_candidates:
-            lines.append(f"- {candidate.name} ({candidate.ticker}): 후보 검토 대상 [{candidate.strategy_type}]")
+            note = candidate.review_note
+            lines.append(f"- {candidate.name} ({candidate.ticker}): 후보 검토 [{candidate.strategy_type}]")
+            if note is None:
+                lines.append("  - 검토 이유: 구조화된 검토 메모가 아직 생성되지 않았습니다.")
+                continue
+            lines.append(f"  - 검토 이유: {note.review_reason}")
+            lines.append(f"  - 보류/확인 사유: {note.defer_or_reject_reason}")
+            lines.append(f"  - 다음 확인: {note.next_check}")
+            lines.append(f"  - 데이터 신뢰도: {note.data_confidence}")
     else:
         lines.append("- 검토 가능한 신규 후보가 없습니다.")
+        if candidate_exclusion_counts:
+            lines.append("- 다음 확인: 주요 제외 사유 상위 항목을 확인해 이번 주 검토 보류 원인을 점검하세요.")
     lines.append("")
     lines.append(f"생성 시각: {generated_at.isoformat()}")
     return "\n".join(lines)

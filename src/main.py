@@ -31,6 +31,7 @@ from src.engines.portfolio import PortfolioEngine
 from src.engines.technical import TechnicalEngine
 from src.models import Candidate, ExplainLog, MacroStatus
 from src.reporting import render_markdown_report, render_telegram_markdown_v2
+from src.review_notes import build_candidate_review_note
 from src.utils.atomic import atomic_write_json
 from src.utils.config import get_nested, load_settings
 from src.utils.redaction import sanitize_error_message
@@ -163,6 +164,20 @@ def run(settings_path: str) -> None:
             ]
         rankable_candidates = []
     ranked_candidates = portfolio_engine.rank_candidates(rankable_candidates, macro_status)
+    ranked_candidates = [
+        candidate.model_copy(
+            update={
+                "review_note": build_candidate_review_note(
+                    candidate,
+                    macro_status=macro_status,
+                    macro_provider=market_data.macro_provider,
+                    generated_at=now,
+                    market_data_warnings=market_warnings,
+                )
+            }
+        )
+        for candidate in ranked_candidates
+    ]
     trade_guides = []
 
     ranked_by_ticker = {candidate.ticker: candidate for candidate in ranked_candidates}
@@ -204,6 +219,7 @@ def run(settings_path: str) -> None:
                 "exit_signal": candidate.exit_signal.value if candidate else None,
                 "rationale": candidate.rationale if candidate else [],
                 "risks": risk_reasons,
+                "review_note": ranked.review_note.model_dump(mode="json") if ranked and ranked.review_note else None,
                 "provider": candidate.provider if candidate else market_data.provider,
                 "data_provenance": candidate.data_provenance if candidate else _fundamental_data_provenance(fundamentals_by_ticker.get(ticker), market_data, universe_records),
                 "macro_context": {
@@ -288,6 +304,15 @@ def run(settings_path: str) -> None:
             "generated_at": now.isoformat(),
             "markdown": report,
             "telegram_delivery_status": telegram_delivery_status,
+            "review_notes": [
+                {
+                    "ticker": candidate.ticker,
+                    "name": candidate.name,
+                    "final_rank": candidate.final_rank,
+                    "review_note": candidate.review_note.model_dump(mode="json") if candidate.review_note else None,
+                }
+                for candidate in ranked_candidates
+            ],
         },
     )
     print(report)

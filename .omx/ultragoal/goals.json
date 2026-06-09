@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-09T14:33:12.951Z",
-  "updatedAt": "2026-06-09T23:24:32.561Z",
+  "updatedAt": "2026-06-09T23:27:02.479Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -35,10 +35,13 @@
       "id": "G003-report-and-artifact-integration-rend",
       "title": "Report and artifact integration: Render structured Korean candidate r...",
       "objective": "Report and artifact integration: Render structured Korean candidate review notes in `src/reporting.py` under the existing candidate review memo section, using “검토/보류/확인” language and no purchase/order/sizing/rebalancing instructions. Persist structured review-note fields in report JSON and explain-log items; Markdown-only evidence is insufficient. Preserve `telegram_delivery_status`, provider/risk warnings, score inputs, and existing explain-log audit fields.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-09T14:33:12.951Z",
-      "updatedAt": "2026-06-09T14:33:12.951Z"
+      "updatedAt": "2026-06-09T23:27:02.479Z",
+      "startedAt": "2026-06-09T23:24:56.573Z",
+      "completedAt": "2026-06-09T23:27:02.479Z",
+      "evidence": "Integrated structured candidate review notes into Korean Markdown reports plus report JSON and explain-log artifacts; py_compile, non-live CLI smoke, structured artifact checks, and forbidden-language scan passed; evidence .omx/ultragoal/evidence/G003-report-artifact-integration.md."
     },
     {
       "id": "G004-test-and-fixture-verification-add-fo",
