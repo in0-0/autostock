@@ -130,6 +130,17 @@ class TechnicalRecord(Serializable):
 
 
 @dataclass
+class CandidateReviewNote(Serializable):
+    review_reason: str
+    defer_or_reject_reason: str
+    next_check: str
+    data_confidence: str
+    source_context: dict[str, Any] = field(default_factory=dict)
+    generated_context: dict[str, Any] = field(default_factory=dict)
+    excluded_or_near_miss_context: str = "top_exclusion_categories_only"
+
+
+@dataclass
 class Candidate(Serializable):
     ticker: str
     name: str
@@ -145,6 +156,7 @@ class Candidate(Serializable):
     review_score: float | None = None
     score_inputs: dict[str, Any] = field(default_factory=dict)
     data_provenance: dict[str, Any] = field(default_factory=dict)
+    review_note: CandidateReviewNote | None = None
 
 
 @dataclass

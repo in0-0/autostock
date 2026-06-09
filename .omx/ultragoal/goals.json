@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-09T14:33:12.951Z",
-  "updatedAt": "2026-06-09T23:22:47.604Z",
+  "updatedAt": "2026-06-09T23:24:32.561Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -23,10 +23,13 @@
       "id": "G002-candidate-review-note-schema-and-bui",
       "title": "Candidate review-note schema and builder: Add a typed or serializable...",
       "objective": "Candidate review-note schema and builder: Add a typed or serializable candidate-review-note structure consistent with existing dataclass patterns, plus a small helper/builder outside rendering logic. Build notes from existing candidate/filter/rationale/risk/score-input/provenance/macro/exclusion data without changing ranking/scoring semantics. Each note must include review reason, defer-or-reject reason, next check, data confidence/provenance, source context, and generated context. Explicitly decide and document whether first pass uses top exclusion categories only or selected near-miss ticker notes.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-09T14:33:12.951Z",
-      "updatedAt": "2026-06-09T14:33:12.951Z"
+      "updatedAt": "2026-06-09T23:24:32.561Z",
+      "startedAt": "2026-06-09T23:23:12.840Z",
+      "completedAt": "2026-06-09T23:24:32.561Z",
+      "evidence": "Added CandidateReviewNote dataclass and Candidate.review_note; added src/review_notes.py helper outside rendering logic; builder uses existing candidate/risk/provenance/score/macro data and records top_exclusion_categories_only policy; py_compile and import smoke passed; evidence .omx/ultragoal/evidence/G002-review-note-schema-builder.md."
     },
     {
       "id": "G003-report-and-artifact-integration-rend",
