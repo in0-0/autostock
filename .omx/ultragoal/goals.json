@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-09T14:33:12.951Z",
-  "updatedAt": "2026-06-09T23:27:02.479Z",
+  "updatedAt": "2026-06-09T23:30:09.503Z",
   "briefPath": ".omx/ultragoal/brief.md",
   "goalsPath": ".omx/ultragoal/goals.json",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
@@ -47,10 +47,13 @@
       "id": "G004-test-and-fixture-verification-add-fo",
       "title": "Test and fixture verification: Add focused tests in `tests/test_phase...",
       "objective": "Test and fixture verification: Add focused tests in `tests/test_phase1.py` or appropriate existing test surface for passing candidate notes, risk/macro/data-warning notes, no-candidate or exclusion-summary behavior, Markdown escaping/safety, structured report/explain persistence, and unchanged `peg_macro_v1` scoring semantics. Run `python3 -m pytest`, `git diff --check`, and a targeted scan for debug leaks, secret-ish patterns, and forbidden current-stage order/sizing language. Use only non-live fixture/sample paths; do not run live Google Sheets or Telegram sends.",
-      "status": "pending",
-      "attempt": 0,
+      "status": "complete",
+      "attempt": 1,
       "createdAt": "2026-06-09T14:33:12.951Z",
-      "updatedAt": "2026-06-09T14:33:12.951Z"
+      "updatedAt": "2026-06-09T23:30:09.503Z",
+      "startedAt": "2026-06-09T23:27:33.005Z",
+      "completedAt": "2026-06-09T23:30:09.503Z",
+      "evidence": "Added focused candidate review-note builder/rendering/escaping/static/CLI artifact tests; preserved peg_macro_v1 assertions; targeted pytest, full pytest (67 passed), git diff --check, and runtime source scans passed; evidence .omx/ultragoal/evidence/G004-test-fixture-verification.md."
     },
     {
       "id": "G005-korean-documentation-alignment-after",

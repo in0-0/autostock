@@ -50,6 +50,7 @@ from src.engines.macro import MacroEngine
 from src.engines.portfolio import PortfolioEngine
 from src.models import (
     Candidate,
+    CandidateReviewNote,
     FundamentalRecord,
     MacroStatus,
     PortfolioState,
@@ -63,7 +64,8 @@ from src.main import (
     _resolve_market_universe,
     _send_telegram_report,
 )
-from src.reporting import render_markdown_report
+from src.reporting import render_markdown_report, render_telegram_markdown_v2
+from src.review_notes import build_candidate_review_note
 from src.utils.atomic import atomic_write_json
 from src.utils.config import load_settings
 
@@ -886,8 +888,45 @@ class Phase1Tests(unittest.TestCase):
 
         self.assertIn("주요 제외 사유", report)
         self.assertIn("missing_peg_inputs: 2개", report)
+        self.assertIn("다음 확인: 주요 제외 사유 상위 항목", report)
         self.assertNotIn("추가 매수 +", report)
         self.assertNotIn("목표 비중", report)
+
+    def test_candidate_review_note_builder_records_pass_and_warning_context(self) -> None:
+        candidate = Candidate(
+            ticker="005930",
+            name="삼성전자",
+            peg=0.5,
+            strategy_type="WEEKLY_20MA_PULLBACK",
+            current_price=50_000,
+            final_rank=1,
+            review_score=170.0,
+            score_inputs={"score_policy_version": "peg_macro_v1", "macro_status": "CAUTION"},
+            rationale=["financial_cutoff_passed", "WEEKLY_20MA_PULLBACK"],
+            risks=["macro_caution_penalty"],
+            provider="fixture_realistic",
+            data_provenance={"price_source": "fixture_realistic", "field_provenance": {"peg": {"source_risk": "official_api"}}},
+        )
+
+        note = build_candidate_review_note(
+            candidate,
+            macro_status=MacroStatus.CAUTION,
+            macro_provider="unavailable",
+            generated_at=datetime(2026, 6, 1, 9, 0, 0),
+            market_data_warnings=["macro_data_unavailable:fixture_realistic"],
+        )
+
+        self.assertIn("재무 기준을 통과했습니다", note.review_reason)
+        self.assertIn("주봉 20주선 눌림목", note.review_reason)
+        self.assertIn("검토 점수 170.00", note.review_reason)
+        self.assertIn("거시 환경이 CAUTION 상태", note.defer_or_reject_reason)
+        self.assertIn("macro_data_unavailable:fixture_realistic", note.defer_or_reject_reason)
+        self.assertIn("CAUTION 감점", note.next_check)
+        self.assertIn("추가 확인", note.data_confidence)
+        self.assertEqual(note.source_context["note_scope"], "ranked_candidate_only")
+        self.assertEqual(note.source_context["macro_provider"], "unavailable")
+        self.assertEqual(note.source_context["score_inputs"]["score_policy_version"], "peg_macro_v1")
+        self.assertEqual(note.excluded_or_near_miss_context, "first_pass_uses_top_exclusion_categories_only")
 
     def test_real_market_data_mode_does_not_fall_back_to_sample(self) -> None:
         providers = build_market_data_providers("real", universe=[])
@@ -1332,6 +1371,82 @@ class Phase1Tests(unittest.TestCase):
         self.assertIn("시장데이터 경고: all_market_data_providers_failed", report)
         self.assertIn("시장데이터 경고: market_provider_failed:failing:offline", report)
 
+    def test_report_renders_structured_candidate_review_note(self) -> None:
+        candidate = Candidate(
+            ticker="005930",
+            name="삼성전자",
+            peg=0.4,
+            strategy_type="WEEKLY_20MA_PULLBACK",
+            current_price=50_000,
+            final_rank=1,
+            review_score=250.0,
+            review_note=CandidateReviewNote(
+                review_reason="재무 기준을 통과했고 주봉 눌림목 조건을 확인했습니다.",
+                defer_or_reject_reason="현재 후보 메모 기준의 즉시 보류 사유는 감지되지 않았습니다.",
+                next_check="다음 거래일 전 주봉 눌림목 조건 유지 여부를 확인하세요.",
+                data_confidence="기본 확인: 현재 provider/provenance 기준에서 주요 데이터 경고는 감지되지 않았습니다.",
+                source_context={"provider": "fixture_realistic"},
+                generated_context={"note_policy_version": "candidate_review_note_v1"},
+            ),
+        )
+        portfolio = PortfolioState(
+            updated_at=datetime(2026, 5, 27),
+            total_krw_evaluation=10_000_000,
+            total_krw_deposit=10_000_000,
+        )
+
+        report = render_markdown_report(
+            generated_at=datetime(2026, 5, 27),
+            macro_status=MacroStatus.NORMAL,
+            macro_indicators={"kospi_above_10ma": True, "kosdaq_above_10ma": True},
+            ranked_candidates=[candidate],
+            trade_guides=[],
+            portfolio=portfolio,
+        )
+
+        self.assertIn("후보 검토 [WEEKLY_20MA_PULLBACK]", report)
+        self.assertIn("검토 이유: 재무 기준을 통과", report)
+        self.assertIn("보류/확인 사유: 현재 후보 메모 기준", report)
+        self.assertIn("다음 확인: 다음 거래일 전", report)
+        self.assertIn("데이터 신뢰도: 기본 확인", report)
+        self.assertNotIn("자동 주문", report)
+        self.assertNotIn("목표 비중", report)
+        self.assertNotIn("리밸런싱", report)
+
+    def test_telegram_markdown_v2_escapes_review_note_text(self) -> None:
+        candidate = Candidate(
+            ticker="005930",
+            name="삼성전자",
+            peg=0.4,
+            strategy_type="WEEKLY_20MA_PULLBACK",
+            current_price=50_000,
+            final_rank=1,
+            review_note=CandidateReviewNote(
+                review_reason="provider_a [확인] (주의)",
+                defer_or_reject_reason="보류 없음",
+                next_check="조건_유지 확인",
+                data_confidence="정상",
+            ),
+        )
+        portfolio = PortfolioState(
+            updated_at=datetime(2026, 5, 27),
+            total_krw_evaluation=10_000_000,
+            total_krw_deposit=10_000_000,
+        )
+        report = render_markdown_report(
+            generated_at=datetime(2026, 5, 27),
+            macro_status=MacroStatus.NORMAL,
+            macro_indicators={"kospi_above_10ma": True, "kosdaq_above_10ma": True},
+            ranked_candidates=[candidate],
+            trade_guides=[],
+            portfolio=portfolio,
+        )
+
+        telegram_markdown = render_telegram_markdown_v2(report)
+
+        self.assertIn(r"provider\_a \[확인\] \(주의\)", telegram_markdown)
+        self.assertIn(r"조건\_유지 확인", telegram_markdown)
+
     def test_report_mvp_language_avoids_share_sizing(self) -> None:
         candidate = Candidate(
             ticker="005930",
@@ -1370,6 +1485,38 @@ class Phase1Tests(unittest.TestCase):
         self.assertNotIn("신규 매수", report)
         self.assertNotIn("[REDUCE]", report)
         self.assertNotIn("[SKIP]", report)
+
+    def test_changed_source_has_no_debug_leaks_or_current_stage_order_language(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        changed_source = "\n".join(
+            [
+                (repo_root / "src" / "main.py").read_text(encoding="utf-8"),
+                (repo_root / "src" / "reporting.py").read_text(encoding="utf-8"),
+            ]
+        )
+        rendered_output_source = (repo_root / "src" / "reporting.py").read_text(encoding="utf-8")
+
+        forbidden_fragments = [
+            "print(api_key)",
+            "print(candidate)",
+            "매수 수량",
+            "목표 비중",
+            "자동 주문",
+            "리밸런싱",
+            "주문 실행",
+        ]
+        for fragment in forbidden_fragments:
+            self.assertNotIn(fragment, changed_source)
+
+        forbidden_output_secret_terms = [
+            "bot_token",
+            "chat_id",
+            "spreadsheet_id",
+            "credentials_path",
+            "token_path",
+        ]
+        for fragment in forbidden_output_secret_terms:
+            self.assertNotIn(fragment, rendered_output_source)
 
     def test_cli_with_spreadsheet_and_market_fixtures_writes_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1486,9 +1633,19 @@ class Phase1Tests(unittest.TestCase):
             self.assertEqual(explain["source_warnings"], [])
             self.assertEqual(explain["failed_sources"], [])
             self.assertEqual(explain["telegram_delivery_status"], "disabled")
+            self.assertIsNotNone(explain["items"][0]["review_note"])
+            self.assertEqual(explain["items"][0]["review_note"]["source_context"]["note_scope"], "ranked_candidate_only")
+            self.assertEqual(explain["items"][0]["review_note"]["source_context"]["macro_status"], "NORMAL")
+            self.assertEqual(
+                explain["items"][0]["review_note"]["excluded_or_near_miss_context"],
+                "first_pass_uses_top_exclusion_categories_only",
+            )
             report_payload = json.loads(report_files[0].read_text(encoding="utf-8"))
             self.assertEqual(report_payload["telegram_delivery_status"], "disabled")
             self.assertIn("포트폴리오 점검 요약", report_payload["markdown"])
+            self.assertEqual(report_payload["review_notes"][0]["ticker"], "005930")
+            self.assertIn("review_reason", report_payload["review_notes"][0]["review_note"])
+            self.assertIn("검토 이유", report_payload["markdown"])
 
     def test_cli_with_missing_fixture_macro_keeps_candidates_with_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1594,6 +1751,10 @@ class Phase1Tests(unittest.TestCase):
             self.assertEqual(explain["items"][0]["data_provenance"]["price_source"], "fixture_realistic")
             self.assertIn("macro_data_unavailable:fixture_realistic", explain["items"][0]["risks"])
             self.assertIn("macro_caution_penalty", explain["items"][0]["risks"])
+            self.assertIsNotNone(explain["items"][0]["review_note"])
+            self.assertEqual(explain["items"][0]["review_note"]["source_context"]["macro_status"], "CAUTION")
+            self.assertIn("CAUTION", explain["items"][0]["review_note"]["next_check"])
+            self.assertIn("macro_data_unavailable:fixture_realistic", explain["items"][0]["review_note"]["source_context"]["risks"])
 
     def test_cli_with_macro_risk_off_blocks_buy_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
