@@ -36,6 +36,7 @@ from src.collectors.universe import (
     UniverseFilter,
     UniverseRecord,
     apply_universe_filter,
+    apply_universe_filter_result,
     load_universe_with_fallback,
     universe_cache_path,
 )
@@ -788,6 +789,63 @@ class Phase1Tests(unittest.TestCase):
 
         self.assertEqual([record.ticker for record in filtered], ["035420"])
 
+    def test_universe_filter_result_excludes_analysis_impossible_instruments(self) -> None:
+        records = [
+            UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("123456", "미래에셋비전스팩", "KOSDAQ", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("005935", "삼성전자우", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("088260", "이리츠코크렙", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("078930", "GS", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+        ]
+
+        result = apply_universe_filter_result(records, UniverseFilter())
+
+        self.assertEqual([record.ticker for record in result.records], ["005930", "078930"])
+        self.assertEqual(result.exclusion_counts["non_numeric_ticker"], 1)
+        self.assertEqual(result.exclusion_counts["spac"], 2)
+        self.assertEqual(result.exclusion_counts["preferred_share"], 1)
+        self.assertEqual(result.exclusion_counts["reit_infra_fund"], 1)
+        self.assertEqual(apply_universe_filter(records, UniverseFilter()), result.records)
+        self.assertEqual(result.exclusion_samples[0]["ticker"], "0004Y0")
+
+    def test_universe_filter_allowlist_restores_otherwise_excluded_ticker(self) -> None:
+        records = [
+            UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("123456", "미래에셋비전스팩", "KOSDAQ", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+        ]
+
+        result = apply_universe_filter_result(records, UniverseFilter(allowlist=("0004Y0",)))
+
+        self.assertEqual([record.ticker for record in result.records], ["0004Y0"])
+        self.assertEqual(result.exclusion_counts, {"spac": 1})
+        self.assertEqual(result.allowlist_overrides["non_numeric_ticker"], 1)
+        self.assertEqual(result.allowlist_overrides["spac"], 1)
+
+    def test_universe_filter_excludes_reit_infra_fund_without_meritz_false_positive(self) -> None:
+        records = [
+            UniverseRecord("138040", "메리츠금융지주", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("088980", "맥쿼리인프라", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("123789", "공모펀드", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+        ]
+
+        result = apply_universe_filter_result(records, UniverseFilter())
+
+        self.assertEqual([record.ticker for record in result.records], ["138040"])
+        self.assertEqual(result.exclusion_counts["reit_infra_fund"], 2)
+
+    def test_universe_filter_computes_exclusions_before_max_universe_size(self) -> None:
+        records = [
+            UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("005930", "삼성전자", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+            UniverseRecord("035420", "NAVER", "KOSPI", "fixture", "package_public_source", "2026-06-01T00:00:00"),
+        ]
+
+        result = apply_universe_filter_result(records, UniverseFilter(max_universe_size=1))
+
+        self.assertEqual([record.ticker for record in result.records], ["005930"])
+        self.assertEqual(result.exclusion_counts["non_numeric_ticker"], 1)
+
     def test_universe_fallback_records_empty_and_failed_providers(self) -> None:
         class EmptyUniverseProvider:
             name = "empty"
@@ -844,6 +902,56 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(payload["cache_schema_version"], 1)
         self.assertEqual(payload["records"][0]["source_risk"], "package_public_source")
 
+    def test_universe_cache_key_includes_filter_policy_and_allowlist(self) -> None:
+        default_path = universe_cache_path("/tmp/cache", "static", UniverseFilter())
+        allowlist_path = universe_cache_path("/tmp/cache", "static", UniverseFilter(allowlist=("0004Y0",)))
+        disabled_path = universe_cache_path("/tmp/cache", "static", UniverseFilter(exclude_spac=False))
+
+        self.assertNotEqual(default_path, allowlist_path)
+        self.assertNotEqual(default_path, disabled_path)
+
+    def test_cached_universe_provider_preserves_filter_summary_on_hit(self) -> None:
+        class StaticUniverseProvider:
+            name = "static"
+
+            def load(self) -> list[UniverseRecord]:
+                return [
+                    UniverseRecord("005930", "삼성전자", "KOSPI", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                    UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = universe_cache_path(tmp, "static", UniverseFilter())
+            provider = CachedUniverseProvider(StaticUniverseProvider(), cache_path, max_age_days=7)
+            provider.load()
+            provider.load()
+
+        self.assertEqual(provider.last_filter_summary["counts"]["non_numeric_ticker"], 1)
+        self.assertEqual(provider.last_filter_summary["samples"][0]["ticker"], "0004Y0")
+
+
+    def test_universe_fallback_preserves_filter_summary_when_all_records_are_excluded(self) -> None:
+        class AllExcludedUniverseProvider:
+            def __init__(self) -> None:
+                self.name = "all_excluded"
+                self.filter_config = UniverseFilter()
+
+            def load(self) -> list[UniverseRecord]:
+                result = apply_universe_filter_result(
+                    [
+                        UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                    ],
+                    self.filter_config,
+                )
+                self.last_filter_summary = result.summary()
+                return result.records
+
+        records, warnings = load_universe_with_fallback([AllExcludedUniverseProvider()])
+
+        self.assertEqual(records, [])
+        self.assertIn("universe_provider_empty:all_excluded", warnings)
+        self.assertEqual(load_universe_with_fallback.last_filter_summary["counts"]["non_numeric_ticker"], 1)
+        self.assertEqual(load_universe_with_fallback.last_filter_summary["counts"]["spac"], 1)
 
     def test_real_mode_empty_config_universe_resolves_from_provider(self) -> None:
         class StaticUniverseProvider:
@@ -869,6 +977,72 @@ class Phase1Tests(unittest.TestCase):
         self.assertEqual(warnings, [])
         self.assertEqual(snapshot["count"], 1)
 
+    def test_real_mode_universe_snapshot_includes_pre_universe_exclusions(self) -> None:
+        class StaticUniverseProvider:
+            def __init__(self, filter_config: UniverseFilter) -> None:
+                self.filter_config = filter_config
+                self.name = "static_universe"
+
+            def load(self) -> list[UniverseRecord]:
+                result = apply_universe_filter_result(
+                    [
+                        UniverseRecord("005930", "삼성전자", "KOSPI", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                        UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                    ],
+                    self.filter_config,
+                )
+                self.last_filter_summary = result.summary()
+                return result.records
+
+        settings = {"market_data": {"universe": [], "universe_provider": {"markets": ["KOSPI", "KOSDAQ"]}}}
+        with patch("src.main.PykrxUniverseProvider", StaticUniverseProvider), patch("src.main.FdrUniverseProvider", StaticUniverseProvider):
+            tickers, records, warnings, snapshot = _resolve_market_universe(settings, "real")
+
+        self.assertEqual(tickers, ["005930"])
+        self.assertEqual(snapshot["pre_universe_exclusions"]["counts"]["non_numeric_ticker"], 1)
+        self.assertEqual(snapshot["pre_universe_exclusions"]["samples"][0]["ticker"], "0004Y0")
+
+    def test_real_mode_universe_snapshot_preserves_pre_universe_exclusions_when_all_filtered(self) -> None:
+        class AllExcludedUniverseProvider:
+            def __init__(self, filter_config: UniverseFilter) -> None:
+                self.filter_config = filter_config
+                self.name = "all_excluded"
+
+            def load(self) -> list[UniverseRecord]:
+                result = apply_universe_filter_result(
+                    [
+                        UniverseRecord("0004Y0", "디비금융제14호스팩", "KOSDAQ", self.name, "package_public_source", "2026-06-01T00:00:00"),
+                    ],
+                    self.filter_config,
+                )
+                self.last_filter_summary = result.summary()
+                return result.records
+
+        settings = {"market_data": {"universe": [], "universe_provider": {"markets": ["KOSPI", "KOSDAQ"]}}}
+        with patch("src.main.PykrxUniverseProvider", AllExcludedUniverseProvider), patch("src.main.FdrUniverseProvider", AllExcludedUniverseProvider):
+            tickers, records, warnings, snapshot = _resolve_market_universe(settings, "real")
+
+        self.assertEqual(tickers, [])
+        self.assertEqual(records, [])
+        self.assertIn("universe_empty", warnings)
+        self.assertEqual(snapshot["pre_universe_exclusions"]["counts"]["non_numeric_ticker"], 1)
+
+    def test_configured_universe_bypasses_provider_conservative_filter(self) -> None:
+        settings = {
+            "market_data": {
+                "mode": "real",
+                "universe": ["0004Y0"],
+                "universe_provider": {"markets": ["KOSPI", "KOSDAQ"]},
+            }
+        }
+
+        tickers, records, warnings, snapshot = _resolve_market_universe(settings, "real")
+
+        self.assertEqual(tickers, ["0004Y0"])
+        self.assertEqual(records[0].source, "settings")
+        self.assertEqual(warnings, [])
+        self.assertNotIn("pre_universe_exclusions", snapshot)
+
     def test_report_shows_top_exclusion_counts_when_no_candidates(self) -> None:
         portfolio = PortfolioState(
             updated_at=datetime(2026, 6, 1),
@@ -891,6 +1065,69 @@ class Phase1Tests(unittest.TestCase):
         self.assertIn("다음 확인: 주요 제외 사유 상위 항목", report)
         self.assertNotIn("추가 매수 +", report)
         self.assertNotIn("목표 비중", report)
+
+    def test_report_shows_pre_universe_exclusions_without_mixing_candidate_counts(self) -> None:
+        portfolio = PortfolioState(
+            updated_at=datetime(2026, 6, 1),
+            total_krw_evaluation=1_000_000,
+            total_krw_deposit=0,
+        )
+
+        report = render_markdown_report(
+            generated_at=datetime(2026, 6, 1),
+            macro_status=MacroStatus.CAUTION,
+            macro_indicators={"kospi_above_10ma": False, "kosdaq_above_10ma": False},
+            ranked_candidates=[],
+            trade_guides=[],
+            portfolio=portfolio,
+            candidate_exclusion_counts={"missing_peg_inputs": 2},
+            universe_snapshot={
+                "pre_universe_exclusions": {
+                    "counts": {"non_numeric_ticker": 1},
+                    "samples": [{"ticker": "0004Y0", "name": "디비금융제14호스팩", "reason": "non_numeric_ticker"}],
+                }
+            },
+        )
+
+        self.assertIn("주요 제외 사유", report)
+        self.assertIn("missing_peg_inputs: 2개", report)
+        self.assertIn("유니버스 사전 제외", report)
+        self.assertIn("non_numeric_ticker: 1개", report)
+        self.assertIn("0004Y0 디비금융제14호스팩", report)
+
+    def test_report_shows_pre_universe_exclusions_when_candidates_exist(self) -> None:
+        portfolio = PortfolioState(
+            updated_at=datetime(2026, 6, 1),
+            total_krw_evaluation=1_000_000,
+            total_krw_deposit=0,
+        )
+        candidate = Candidate(
+            ticker="005930",
+            name="삼성전자",
+            peg=0.5,
+            strategy_type="WEEKLY_20MA_PULLBACK",
+            current_price=50_000,
+            final_rank=1,
+        )
+
+        report = render_markdown_report(
+            generated_at=datetime(2026, 6, 1),
+            macro_status=MacroStatus.CAUTION,
+            macro_indicators={"kospi_above_10ma": False, "kosdaq_above_10ma": False},
+            ranked_candidates=[candidate],
+            trade_guides=[],
+            portfolio=portfolio,
+            universe_snapshot={
+                "pre_universe_exclusions": {
+                    "counts": {"spac": 1},
+                    "samples": [{"ticker": "0004Y0", "name": "디비금융제14호스팩", "reason": "spac"}],
+                }
+            },
+        )
+
+        self.assertIn("1. 삼성전자 (005930)", report)
+        self.assertIn("유니버스 사전 제외", report)
+        self.assertIn("spac: 1개", report)
 
     def test_candidate_review_note_builder_records_pass_and_warning_context(self) -> None:
         candidate = Candidate(

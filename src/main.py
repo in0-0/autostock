@@ -265,6 +265,7 @@ def run(settings_path: str) -> None:
         market_data_warnings=market_warnings,
         telegram_delivery_status=None,
         candidate_exclusion_counts=exclusion_counts,
+        universe_snapshot=market_data.universe_snapshot,
     )
     telegram_delivery_status = _send_telegram_report(report, settings)
 
@@ -278,6 +279,7 @@ def run(settings_path: str) -> None:
         market_data_warnings=market_warnings,
         telegram_delivery_status=telegram_delivery_status,
         candidate_exclusion_counts=exclusion_counts,
+        universe_snapshot=market_data.universe_snapshot,
     )
     explain_log = ExplainLog(
         generated_at=now,
@@ -345,6 +347,11 @@ def _resolve_market_universe(settings: dict, market_data_mode: str) -> tuple[lis
         exclude_etf=bool(provider_settings.get("exclude_etf", True)),
         exclude_etn=bool(provider_settings.get("exclude_etn", True)),
         exclude_konex=bool(provider_settings.get("exclude_konex", True)),
+        exclude_non_numeric_ticker=bool(provider_settings.get("exclude_non_numeric_ticker", True)),
+        exclude_spac=bool(provider_settings.get("exclude_spac", True)),
+        exclude_preferred_share=bool(provider_settings.get("exclude_preferred_share", True)),
+        exclude_reit_infra_fund=bool(provider_settings.get("exclude_reit_infra_fund", True)),
+        allowlist=tuple(provider_settings.get("allowlist") or ()),
         max_universe_size=int(max_size) if max_size not in (None, "") else None,
     )
     providers = [PykrxUniverseProvider(filter_config), FdrUniverseProvider(filter_config)]
@@ -362,6 +369,9 @@ def _resolve_market_universe(settings: dict, market_data_mode: str) -> tuple[lis
         "markets": list(markets),
         "collected_at": records[0].collected_at if records else None,
     }
+    filter_summary = getattr(load_universe_with_fallback, "last_filter_summary", {}) or {}
+    if filter_summary.get("counts") or filter_summary.get("samples") or filter_summary.get("allowlist_overrides"):
+        snapshot["pre_universe_exclusions"] = filter_summary
     return [record.ticker for record in records], records, warnings, snapshot
 
 

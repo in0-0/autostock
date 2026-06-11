@@ -1,19 +1,54 @@
-# Ultragoal Brief: Candidate Review Notes Product Value
-
-Source PRD: `.omx/plans/prd-candidate-review-notes-product-value-20260609.md`
-Source test spec: `.omx/plans/test-spec-candidate-review-notes-product-value-20260609.md`
-Ralplan handoff: `.omx/plans/ralplan-handoff-candidate-review-notes-product-value-20260609.md`
-
-Binding constraints for every story: no automatic orders, no buy sizing, no target weights, no auto rebalancing, no broker order execution, no live Google Sheets read, no live Telegram send, no scheduler/runbook/retry implementation, and no core scoring algorithm change in the first pass. Preserve existing module boundaries and dataclass/Serializable style. Stage and commit only task-related files. Do not commit generated `data/`, local settings, credential files, tokens, private portfolio data, or unrelated existing changes.
-
-- Safety cleanup and regression guard: Remove or guard the current dirty debug prints `print(api_key)` in `src/main.py` and `print(candidate)` in `src/reporting.py`; add a targeted regression/static assertion or documented verification that changed source does not contain those debug leaks, secret key names in unsafe output paths, or forbidden buy/order/rebalancing instruction language. This story must complete before any smoke run that could touch local credentials or private portfolio data.
-
-- Candidate review-note schema and builder: Add a typed or serializable candidate-review-note structure consistent with existing dataclass patterns, plus a small helper/builder outside rendering logic. Build notes from existing candidate/filter/rationale/risk/score-input/provenance/macro/exclusion data without changing ranking/scoring semantics. Each note must include review reason, defer-or-reject reason, next check, data confidence/provenance, source context, and generated context. Explicitly decide and document whether first pass uses top exclusion categories only or selected near-miss ticker notes.
-
-- Report and artifact integration: Render structured Korean candidate review notes in `src/reporting.py` under the existing candidate review memo section, using “검토/보류/확인” language and no purchase/order/sizing/rebalancing instructions. Persist structured review-note fields in report JSON and explain-log items; Markdown-only evidence is insufficient. Preserve `telegram_delivery_status`, provider/risk warnings, score inputs, and existing explain-log audit fields.
-
-- Test and fixture verification: Add focused tests in `tests/test_phase1.py` or appropriate existing test surface for passing candidate notes, risk/macro/data-warning notes, no-candidate or exclusion-summary behavior, Markdown escaping/safety, structured report/explain persistence, and unchanged `peg_macro_v1` scoring semantics. Run `python3 -m pytest`, `git diff --check`, and a targeted scan for debug leaks, secret-ish patterns, and forbidden current-stage order/sizing language. Use only non-live fixture/sample paths; do not run live Google Sheets or Telegram sends.
-
-- Korean documentation alignment: After behavior and tests exist, update Korean project-facing docs as needed, especially README and relevant status/roadmap docs, so the product direction is candidate review notes for a Google Sheets weekend review service rather than broker connector/order/rebalancing implementation. Preserve non-goals and do not include secrets, credential paths/values, spreadsheet IDs, Telegram tokens/chat IDs, account identifiers, private portfolio rows, or generated runtime data.
-
-- Final verification, cleanup, and independent review gate: Run the mandatory Ultragoal final gate on changed files only: targeted verification, ai-slop-cleaner no-op or cleanup report, rerun verification, independent code-reviewer approval, independent architect clear status, secret/forbidden-language scan, and final checkpoint evidence. Do not call Codex `update_goal` until this final gate is clean. If review is not clean, record review blockers instead of marking the aggregate goal complete.
+{
+  "task": "real-mode universe filtering for analysis-impossible instruments",
+  "source_spec": ".omx/specs/deep-interview-universe-filtering.md",
+  "planning_artifacts": {
+    "prd": ".omx/plans/prd-universe-filtering.md",
+    "test_spec": ".omx/plans/test-spec-universe-filtering.md",
+    "ralplan_dr": ".omx/plans/ralplan-dr-universe-filtering.md"
+  },
+  "ralplan_architect_review": {
+    "iteration": 2,
+    "agent_type": "architect",
+    "agent_id": "019eaeea-7a12-7211-bbb2-ebcc4eb1a7fe",
+    "verdict": "APPROVE",
+    "summary": [
+      "Revised plan preserves apply_universe_filter list-returning compatibility API.",
+      "Revised plan adds apply_universe_filter_result structured telemetry API.",
+      "pre_universe_exclusions stay under universe_snapshot, not candidate_exclusion_counts.",
+      "Cache-hit telemetry preservation and configured market_data.universe manual override are covered."
+    ],
+    "implementation_guidance": [
+      "Keep excluded counts separate from allowlist overrides.",
+      "Compute exclusion reasons before max_universe_size.",
+      "Preserve cache-hit audit visibility via raw re-filter or persisted summary.",
+      "Keep heuristics conservative and test-driven."
+    ]
+  },
+  "ralplan_critic_review": {
+    "iteration": 2,
+    "agent_type": "critic",
+    "agent_id": "019eaeeb-410c-7a03-a4cd-1d010d35942e",
+    "verdict": "APPROVE",
+    "summary": [
+      "Principle-option consistency is adequate.",
+      "Alternatives are fairly represented and rejections are justified.",
+      "Risk mitigation covers cache-key separation, cache-hit telemetry, configured universe override, universe_snapshot placement, downstream-only candidate_exclusion_counts, and compatibility.",
+      "Acceptance criteria and verification are concrete and aligned with the deep-interview spec."
+    ],
+    "consensus_gate_can_complete": true
+  },
+  "ralplan_consensus_gate": {
+    "complete": true,
+    "review_order": [
+      "architect",
+      "critic"
+    ],
+    "architect_approving": true,
+    "critic_approving": true
+  },
+  "recommended_handoff": {
+    "default": "$ultragoal",
+    "team": "Use $team only if implementation splits into independent filter, reporting, and tests lanes.",
+    "ralph": "Explicit fallback only if persistent single-owner verification is intentionally selected."
+  }
+}

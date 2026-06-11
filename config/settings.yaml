@@ -25,6 +25,11 @@ market_data:
     exclude_etf: true
     exclude_etn: true
     exclude_konex: true
+    exclude_non_numeric_ticker: true
+    exclude_spac: true
+    exclude_preferred_share: true
+    exclude_reit_infra_fund: true
+    allowlist: []
     max_universe_size: null
   lookback_days: 460
   fixture_path: ""

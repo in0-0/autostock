@@ -17,9 +17,11 @@ def render_markdown_report(
     market_data_warnings: list[str] | None = None,
     telegram_delivery_status: str | None = "disabled",
     candidate_exclusion_counts: dict[str, int] | None = None,
+    universe_snapshot: dict | None = None,
 ) -> str:
     market_data_warnings = market_data_warnings or []
     candidate_exclusion_counts = candidate_exclusion_counts or {}
+    pre_universe_exclusions = (universe_snapshot or {}).get("pre_universe_exclusions", {})
     lines: list[str] = []
     lines.append("📌 포트폴리오 점검 요약")
     lines.append("--------------------------------")
@@ -48,6 +50,14 @@ def render_markdown_report(
             lines.append("- 주요 제외 사유:")
             for reason, count in list(candidate_exclusion_counts.items())[:5]:
                 lines.append(f"   - {reason}: {count}개")
+    if pre_universe_exclusions:
+        lines.append("- 유니버스 사전 제외:")
+        for reason, count in list(pre_universe_exclusions.get("counts", {}).items())[:5]:
+            lines.append(f"   - {reason}: {count}개")
+        samples = pre_universe_exclusions.get("samples", [])
+        if samples:
+            sample_text = ", ".join(f"{sample.get('ticker')} {sample.get('name')}" for sample in samples[:3])
+            lines.append(f"   - 예시: {sample_text}")
     lines.append("")
     lines.append("🚨 시스템 리스크 경고 현황")
     lines.append("--------------------------------")
