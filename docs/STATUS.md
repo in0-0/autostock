@@ -1,8 +1,8 @@
 # 프로젝트 상태
 
-**마지막 갱신:** 2026-06-10
-**상태:** v0.2.0 후보 검토 메모 구현 및 최종 검증 중
-**현재 버전:** v0.1.0 (개발 중)
+**마지막 갱신:** 2026-06-16
+**상태:** v0.2.0 릴리즈 후보 정리 완료
+**현재 버전:** v0.2.0-rc.1
 
 ## 현재 제품 정의
 
@@ -21,8 +21,8 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 | 버전 | 초점 | 상태 |
 |------|------|------|
 | **v0.1.0** | 로컬 CLI, mock/sample 기반 회귀 테스트, JSON 아티팩트 저장 | 개발 기준선 |
-| **v0.2.0** | Google Sheets 기반 주말 후보 리뷰 MVP | 다음 목표 |
-| **v0.3.0** | 운영 스케줄, Telegram 재시도, runbook, 운영 안전성 | 이후 |
+| **v0.2.0** | Google Sheets 기반 주말 후보 리뷰 MVP | 릴리즈 후보 |
+| **v0.3.0** | 운영 스케줄, Telegram 재시도, runbook, 운영 안전성 | 다음 준비 |
 
 ## 시스템 상태
 
@@ -44,12 +44,17 @@ KOSPI/KOSDAQ 전체 종목 중 재무제표와 가격/거래량 데이터가 충
 
 | 우선순위 | 항목 | 이유 |
 |----------|------|------|
-| P0 | OpenDART full-market 운영 증거 정리 | 50종목 smoke와 OpenDART corp-code fallback universe 3,967건 full listed-company validation을 완료했다. `dart_status:013`은 coverage 이슈로 해석하고 raw taxonomy는 회귀 테스트로 고정했다. Public universe provider full-load 실패는 운영 잔여 리스크로 기록한다 |
+| P0 | v0.2.0 릴리즈 최종 승인 | 2026-06-16 KST 기준 회귀 테스트, sample/mock CLI smoke, 산출물 구조 확인, 산출물 안전 스캔이 통과했다. 릴리즈 태그와 배포 여부만 남았다 |
 | P1 | 실제 Google Sheets/Telegram credential smoke | 이번 pass의 비목표다. 로컬 비추적 credential이 준비된 뒤 별도 test sheet/test chat으로 확인한다 |
 | P2 | sample/fixture 설정과 개인 운영 설정 분리 | 실데이터 실행에서 샘플 대체를 방지해야 함 |
 
 ## 최근 변경
 
+- 2026-06-16 KST에 v0.2.0 릴리즈 후보 QA를 수행했다.
+  `python3 -m pytest`는 79개 테스트 통과, `python3 -m src.main --settings config/settings.yaml`는 exit 0으로 완료됐다.
+  생성 산출물은 `portfolio_state.json`, `explain_2026-06-16.json`, `report_2026-06-16.json`이며,
+  explain log는 `NORMAL`, provider `sample`, Telegram `disabled`, 후보 6개와 `peg_macro_v1` score policy를 기록했다.
+  주문/수량/목표비중/credential 패턴에 대한 `data/` 안전 스캔은 match 없이 통과했다.
 - 2026-06-10 KST에 후보별 구조화 검토 메모를 추가했다.
   각 메모는 검토 이유, 보류/확인 사유, 다음 확인, 데이터 신뢰도, source/generated context를 포함한다.
   메모는 Markdown 리포트뿐 아니라 report JSON의 `review_notes`와 explain-log item의 `review_note`에 저장된다.
@@ -99,5 +104,8 @@ OpenDART credential path가 확인됐다. `dart_status:013`은 provider/data cov
 OpenDART corp-code fallback universe 3,967건 full listed-company validation은 완료됐다.
 다만 public universe provider full-load 실패(FDR HTTP 404, pykrx empty-index)는
 운영 잔여 리스크로 남긴다. 실제 Google Sheets 읽기와 Telegram test chat 발송은
-이번 pass에서는 제외한 P1 검증으로 남긴다. 남은 v0.2 작업은 최종 QA/리뷰 게이트와
-문서/아티팩트 정리이며, 운영 스케줄, 재시도, runbook은 v0.3.0 범위로 넘긴다.
+이번 pass에서는 제외한 P1 검증으로 남긴다.
+
+v0.2.0은 릴리즈 후보 상태다. 다음 결정은 릴리즈 태그/배포 승인이다.
+v0.3.0 준비 항목은 운영 스케줄 템플릿, Telegram retry, runbook/롤백 절차,
+sample/fixture와 개인 운영 설정 분리, provider rate limit/stale cache/부분 실패 운영 로그 강화다.
