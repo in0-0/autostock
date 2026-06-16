@@ -4,7 +4,7 @@ title: Weekend Batch Operation Scope
 description: AutoStock은 현재 로컬 주말 배치 실행을 기준으로 하며 스케줄, 재시도, runbook 강화는 v0.3 계획 범위다.
 resource: repo://docs/STATUS.md
 tags: [operations, schedule, runbook]
-timestamp: 2026-06-16T14:00:00Z
+timestamp: 2026-06-16T14:10:00Z
 lifecycle: proposed
 confidence: verified
 provenance:
@@ -24,7 +24,7 @@ provenance:
 
 # Overview
 
-현재 운영 기준은 사용자가 로컬 설정과 credential을 준비한 뒤 CLI를 실행하고, 산출물과 Telegram 상태를 확인하는 방식이다. 실제 Google Sheets 읽기와 Telegram test chat 발송은 credential 준비 후 별도 검증으로 남아 있다.
+v0.2.0 릴리즈 이후 운영 기준은 사용자가 로컬 설정과 credential을 준비한 뒤 CLI를 실행하고, 산출물과 Telegram 상태를 확인하는 방식이다. 실제 Google Sheets 읽기와 Telegram test chat 발송은 credential 준비 후 별도 검증으로 남아 있다.
 
 # Proposed scope
 
